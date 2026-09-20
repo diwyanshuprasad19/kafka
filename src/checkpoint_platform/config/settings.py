@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     metrics_port: int = 8000
     api_host: str = "0.0.0.0"
     api_port: int = 8080
+    # Comma-separated origins; empty = no CORS headers (prod default via env).
+    # Local: leave unset to allow "*" for browser demos.
+    cors_origins: str = "*"
 
     # Business day boundary for daily aggregates (cafeteria-local, not UTC).
     business_timezone: str = "Asia/Kolkata"

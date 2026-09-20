@@ -148,15 +148,15 @@ def run_load(
     total = sum(r["events"] for r in results)
     per_min = (total / wall) * 60 if wall else 0
     print(
-        f"workers={workers} events={total} wall={wall:.2f}s → {total / wall:.0f} evt/s ({per_min:.0f} evt/min)"
+        f"workers={workers} events={total} wall={wall:.2f}s → "
+        f"{total / wall:.0f} evt/s ({per_min:.0f} evt/min)"
     )
     for r in results:
         extra = "" if dry_run else f" delivered={r.get('delivered')} failed={r.get('failed')}"
         print(f"  worker-{r['worker']}: {r['rate']:.0f} evt/s{extra}")
     target_min = rate_per_sec * 60 if rate_per_sec else per_min
-    print(
-        f"achieved={per_min:.0f} evt/min / target={target_min:.0f} evt/min ({(per_min / target_min * 100) if target_min else 0:.1f}%)"
-    )
+    pct = (per_min / target_min * 100) if target_min else 0
+    print(f"achieved={per_min:.0f} evt/min / target={target_min:.0f} evt/min ({pct:.1f}%)")
 
 
 def run_ramp(duration: int, workers: int, counters: int, dry_run: bool) -> None:

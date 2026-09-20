@@ -167,7 +167,8 @@ def run_demo_scenario(producer: CheckpointProducer) -> None:
         producer.publish_checkpoint(ev)
         PRODUCER_EVENTS.labels(source="generator").inc()
         print(
-            f"published {label}: event_id={ev.event_id} version={ev.checkpoint_version} value={ev.value}"
+            f"published {label}: event_id={ev.event_id} "
+            f"version={ev.checkpoint_version} value={ev.value}"
         )
 
     producer.flush()

@@ -20,11 +20,16 @@ from checkpoint_platform.domain.exceptions import DuplicateEventError, StaleVers
 from checkpoint_platform.infrastructure.messaging.kafka_producer import (
     CheckpointProducer,
 )
-from checkpoint_platform.infrastructure.observability.logging import setup_logging
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
 from checkpoint_platform.infrastructure.persistence.session import (
     init_db,
     session_scope,
 )
+
+logger = get_logger(__name__)
 
 DEMO_COUNTERS = [
     ("client-10", "cafe-22", "counter-450"),
@@ -257,7 +262,11 @@ def seed_direct() -> None:
                 svc.process(ev)
                 print(f"✓ {ev.checkpoint_id} v{ev.checkpoint_version}")
             except (DuplicateEventError, StaleVersionError) as exc:
-                print(f"skip {ev.checkpoint_id}: {exc}")
+                logger.info(
+                    "seed_skip",
+                    checkpoint_id=ev.checkpoint_id,
+                    error=str(exc),
+                )
     print(f"Direct-seeded {len(events)} events into PostgreSQL.")
 
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
@@ -23,14 +24,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
 # Set before settings are constructed: a JSON log line per event would otherwise
 # dominate the measurement and hide the database cost being measured.
-import os
-
 os.environ.setdefault("LOG_LEVEL", "WARNING")
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 
 TARGET_PER_MINUTE = 50_000
 TARGET_PER_SEC = TARGET_PER_MINUTE / 60.0

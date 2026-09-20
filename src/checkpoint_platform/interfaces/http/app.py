@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from flask import Flask
 from flask_cors import CORS
 
@@ -32,10 +34,22 @@ setup_logging(service="checkpoint-api")
 logger = get_logger(__name__)
 
 
+def _configure_cors(app: Flask, settings) -> None:
+    raw = (settings.cors_origins or "").strip()
+    if not raw:
+        return
+    if raw == "*":
+        CORS(app)
+        return
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    if origins:
+        CORS(app, resources={r"/*": {"origins": origins}})
+
+
 def create_app() -> Flask:
     settings = get_settings()
     app = Flask(__name__)
-    CORS(app)
+    _configure_cors(app, settings)
 
     app.extensions["cache"] = get_cache()
     app.extensions["publisher"] = get_publisher()
@@ -57,13 +71,21 @@ def create_app() -> Flask:
     app.register_blueprint(metrics.bp)
     app.register_blueprint(ops.bp)
 
-    # Dedicated Prometheus scrape port (Compose) + also /metrics on API port
-    try:
-        start_metrics_server(settings.metrics_port)
-    except OSError:
-        logger.warning("metrics_port_in_use", port=settings.metrics_port)
+    # Cloud Run exposes one port — scrape /metrics on the API port only.
+    # Local/compose can still open the dedicated metrics_port.
+    on_cloud_run = bool(os.environ.get("K_SERVICE"))
+    if not on_cloud_run and settings.metrics_port > 0:
+        try:
+            start_metrics_server(settings.metrics_port)
+        except OSError:
+            logger.warning("metrics_port_in_use", port=settings.metrics_port)
 
-    logger.info("api_started", env=settings.app_env, port=settings.api_port)
+    logger.info(
+        "api_started",
+        env=settings.app_env,
+        port=settings.api_port,
+        cloud_run=on_cloud_run,
+    )
     return app
 
 
@@ -74,7 +96,7 @@ def main() -> None:
     settings = get_settings()
     app.run(
         host=settings.api_host,
-        port=settings.api_port,
+        port=int(os.environ.get("PORT", settings.api_port)),
         debug=settings.app_env == "local",
     )
 

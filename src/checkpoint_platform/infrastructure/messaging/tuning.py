@@ -91,7 +91,6 @@ SCALE_50K_PER_MIN = {
     ],
 }
 
-# Back-compat alias used by older scripts/tests (maps to per-minute plan)
 SCALE_50K = {
     "target_events_per_sec": TARGET_EVENTS_PER_SEC,
     "target_events_per_minute": TARGET_EVENTS_PER_MINUTE,

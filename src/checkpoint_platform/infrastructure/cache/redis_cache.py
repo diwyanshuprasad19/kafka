@@ -75,7 +75,8 @@ class RedisAggregateCache:
 
             raw = self._client.get(self.cafe_key(date, cafe_id))
             return json.loads(raw) if raw else None
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("redis_cafe_get_failed", error=str(exc))
             return None
 
     def set_cafe(self, date: str, cafe_id: str, payload: dict) -> None:
@@ -89,8 +90,8 @@ class RedisAggregateCache:
                 self.settings.redis_cache_ttl_seconds,
                 json.dumps(payload),
             )
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("redis_cafe_set_failed", error=str(exc))
 
 
 # Alias

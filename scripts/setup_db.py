@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import subprocess
 import sys
 import time
@@ -21,6 +22,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+
+logger = logging.getLogger(__name__)
 
 
 def wait_pg(timeout: int = 60) -> None:
@@ -62,7 +65,10 @@ def migrate() -> None:
             command.stamp(cfg, "head")
             print("✓ create_all + alembic stamp head")
         except Exception as stamp_exc:  # noqa: BLE001
-            print(f"! stamp skipped: {stamp_exc}")
+            logger.warning(
+                "alembic stamp skipped after create_all: %s",
+                stamp_exc,
+            )
             print("✓ create_all")
 
 
@@ -98,6 +104,11 @@ def show_counts() -> None:
                 n = conn.execute(text(f"SELECT count(*) FROM {t}")).scalar()
                 print(f"  {t}: {n}")
             except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "table count unavailable for %s: %s",
+                    t,
+                    exc,
+                )
                 print(f"  {t}: missing ({exc.__class__.__name__})")
 
 

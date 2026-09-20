@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import uuid
 from contextvars import ContextVar
@@ -90,9 +91,18 @@ def setup_logging(service: str = "checkpoint-platform") -> None:
     ]
 
     if settings.app_env == "local" and settings.log_level.upper() == "DEBUG":
-        renderer: Any = structlog.dev.ConsoleRenderer()
+        use_json = False
     else:
-        renderer = structlog.processors.JSONRenderer()
+        use_json = True
+    # Cloud Run / Alloy path: force JSON when LOG_FORMAT=json
+    if os.environ.get("LOG_FORMAT", "").lower() == "json":
+        use_json = True
+    elif os.environ.get("LOG_FORMAT", "").lower() in {"console", "text"}:
+        use_json = False
+
+    renderer: Any = (
+        structlog.processors.JSONRenderer() if use_json else structlog.dev.ConsoleRenderer()
+    )
 
     structlog.configure(
         processors=[

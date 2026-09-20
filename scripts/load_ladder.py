@@ -27,9 +27,8 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -65,15 +64,11 @@ class StepResult:
         # accumulates more than a couple of seconds of work, and ends at zero.
         backlog_budget = max(2.0 * self.producer_rate, 200)
         self.keeping_up = (
-            self.drained
-            and self.end_lag == 0
-            and self.lag_at_end_of_production <= backlog_budget
+            self.drained and self.end_lag == 0 and self.lag_at_end_of_production <= backlog_budget
         )
 
 
-# --------------------------------------------------------------------------- #
 # Kafka introspection
-# --------------------------------------------------------------------------- #
 
 
 def _admin_lag(topic: str, group: str, bootstrap: str) -> int:
@@ -91,25 +86,21 @@ def _admin_lag(topic: str, group: str, bootstrap: str) -> int:
         metadata = probe.list_topics(topic, timeout=10)
         if topic not in metadata.topics or metadata.topics[topic].error:
             return 0
-        partitions = [
-            TopicPartition(topic, p) for p in metadata.topics[topic].partitions
-        ]
+        partitions = [TopicPartition(topic, p) for p in metadata.topics[topic].partitions]
         committed = probe.committed(partitions, timeout=10)
 
         total = 0
         for tp in committed:
             _low, high = probe.get_watermark_offsets(tp, timeout=10, cached=False)
             # A partition the group has never committed reports OFFSET_INVALID.
-            position = tp.offset if tp.offset >= 0 else 0
+            position = max(tp.offset, 0)
             total += max(high - position, 0)
         return total
     finally:
         probe.close()
 
 
-# --------------------------------------------------------------------------- #
 # Database introspection
-# --------------------------------------------------------------------------- #
 
 
 def _db_counters() -> dict[str, int]:
@@ -134,9 +125,7 @@ def _db_counters() -> dict[str, int]:
             "aggregates": session.execute(
                 select(func.count()).select_from(DailyCounterAggregation)
             ).scalar_one(),
-            "dlq": session.execute(
-                select(func.count()).select_from(DlqRecord)
-            ).scalar_one(),
+            "dlq": session.execute(select(func.count()).select_from(DlqRecord)).scalar_one(),
         }
 
 
@@ -164,9 +153,7 @@ def _latency_percentiles(since: datetime) -> tuple[float, float]:
     return (round(row.p50 or 0.0, 1), round(row.p95 or 0.0, 1))
 
 
-# --------------------------------------------------------------------------- #
 # Consumer group lifecycle
-# --------------------------------------------------------------------------- #
 
 
 def start_consumers(count: int, log_dir: Path) -> list[subprocess.Popen]:
@@ -202,9 +189,7 @@ def stop_consumers(procs: list[subprocess.Popen]) -> None:
             proc.kill()
 
 
-# --------------------------------------------------------------------------- #
 # Producing
-# --------------------------------------------------------------------------- #
 
 
 def produce_at_rate(rate: float, duration: float, counters: int, topic: str) -> tuple[int, float]:
@@ -261,9 +246,7 @@ def produce_at_rate(rate: float, duration: float, counters: int, topic: str) -> 
     return sent, time.perf_counter() - started
 
 
-# --------------------------------------------------------------------------- #
 # Ladder
-# --------------------------------------------------------------------------- #
 
 
 class LagSampler:
@@ -315,7 +298,7 @@ def run_step(
     bootstrap: str,
 ) -> StepResult:
     before = _db_counters()
-    step_started = datetime.now(timezone.utc)
+    step_started = datetime.now(UTC)
 
     sampler = LagSampler(topic, group, bootstrap)
     sampler.start()
@@ -395,9 +378,7 @@ def print_table(results: list[StepResult], consumers: int) -> None:
         print("No step was sustained — the group fell behind at every rate tested.")
     behind = [r for r in results if not r.keeping_up]
     if behind:
-        print(
-            f"First step where lag accumulated: {behind[0].target_rate:,.0f} events/sec"
-        )
+        print(f"First step where lag accumulated: {behind[0].target_rate:,.0f} events/sec")
 
 
 def main() -> None:
@@ -432,9 +413,7 @@ def main() -> None:
     try:
         for rate in args.rates:
             print(f"\n=== step: {rate:,.0f} events/sec for {args.duration:.0f}s ===")
-            result = run_step(
-                rate, args.duration, args.counters, topic, group, bootstrap
-            )
+            result = run_step(rate, args.duration, args.counters, topic, group, bootstrap)
             results.append(result)
             print(
                 f"    produced {result.produced} at {result.producer_rate}/s, "
@@ -450,9 +429,7 @@ def main() -> None:
     print_table(results, args.consumers)
 
     if args.json:
-        args.json.write_text(
-            json.dumps([r.__dict__ for r in results], indent=2, default=str)
-        )
+        args.json.write_text(json.dumps([r.__dict__ for r in results], indent=2, default=str))
         print(f"\nWrote {args.json}")
 
 

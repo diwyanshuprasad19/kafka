@@ -12,7 +12,10 @@ from checkpoint_platform.infrastructure.observability.logging import (
     get_logger,
     new_request_ids,
 )
-from checkpoint_platform.infrastructure.observability.metrics import HTTP_LATENCY, HTTP_REQUESTS
+from checkpoint_platform.infrastructure.observability.metrics import (
+    HTTP_LATENCY,
+    HTTP_REQUESTS,
+)
 
 logger = get_logger(__name__)
 
@@ -73,5 +76,5 @@ def register_observability(app: Flask, *, service: str = "checkpoint-api") -> No
         return response
 
     @app.teardown_request
-    def _teardown_request(_exc=None) -> None:  # noqa: ANN001
+    def _teardown_request(_exc=None) -> None:
         clear_context()

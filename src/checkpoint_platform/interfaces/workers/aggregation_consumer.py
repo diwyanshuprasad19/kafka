@@ -24,9 +24,16 @@ from collections import deque
 from confluent_kafka import KafkaError, TopicPartition
 
 from checkpoint_platform.config import get_settings
-from checkpoint_platform.config.container import get_event_processor, get_publisher, get_session
+from checkpoint_platform.config.container import (
+    get_event_processor,
+    get_publisher,
+    get_session,
+)
 from checkpoint_platform.infrastructure.messaging.kafka_consumer import build_consumer
-from checkpoint_platform.infrastructure.observability.logging import get_logger, setup_logging
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
 from checkpoint_platform.infrastructure.observability.metrics import (
     ACTIVE_CONSUMERS,
     BATCH_FALLBACKS,
@@ -45,7 +52,7 @@ _running = True
 LAG_REFRESH_SECONDS = 15.0
 
 
-def _handle_signal(signum, frame) -> None:  # noqa: ARG001
+def _handle_signal(signum, frame) -> None:
     global _running
     logger.info("shutdown_signal", signal=signum)
     _running = False
@@ -128,7 +135,7 @@ def _process_individually(publisher, messages) -> OutcomeCounter:
                 offset=msg.offset(),
             )
             outcomes[outcome] += 1
-        except Exception:  # noqa: BLE001
+        except Exception:
             session.rollback()
             outcomes["failed"] += 1
             logger.exception(
@@ -176,7 +183,7 @@ def run() -> None:
     instance = f"{socket.gethostname()}-{os.getpid()}"
     ACTIVE_CONSUMERS.labels(instance=instance).set(1)
 
-    def on_assign(consumer, partitions) -> None:  # noqa: ARG001
+    def on_assign(consumer, partitions) -> None:
         logger.info(
             "partitions_assigned",
             partitions=[f"{p.topic}:{p.partition}" for p in partitions],
@@ -251,9 +258,7 @@ def run() -> None:
                 outcomes = _process_batch(publisher, messages)
             except Exception:
                 BATCH_FALLBACKS.inc()
-                logger.exception(
-                    "batch_failed_replaying_individually", size=len(messages)
-                )
+                logger.exception("batch_failed_replaying_individually", size=len(messages))
                 outcomes = _process_individually(publisher, messages)
 
             # Offsets move only after the data is durable.

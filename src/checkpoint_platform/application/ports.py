@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -18,13 +18,13 @@ class EventPublisher(Protocol):
 
 @runtime_checkable
 class AggregateCachePort(Protocol):
-    def get(self, date: str, counter_id: str, meal_type: str) -> Optional[dict]: ...
+    def get(self, date: str, counter_id: str, meal_type: str) -> dict | None: ...
 
     def set(self, date: str, counter_id: str, meal_type: str, payload: dict) -> None: ...
 
     def invalidate(self, date: str, counter_id: str, meal_type: str) -> None: ...
 
-    def get_cafe(self, date: str, cafe_id: str) -> Optional[dict[str, Any]]: ...
+    def get_cafe(self, date: str, cafe_id: str) -> dict[str, Any] | None: ...
 
     def set_cafe(self, date: str, cafe_id: str, payload: dict) -> None: ...
 

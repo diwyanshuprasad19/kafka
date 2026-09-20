@@ -19,7 +19,7 @@ import json
 import statistics
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 # Set before settings are constructed: a JSON log line per event would otherwise
 # dominate the measurement and hide the database cost being measured.
-import os  # noqa: E402
+import os
 
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 
@@ -74,9 +74,7 @@ def build_payload(i: int, counters: int, corrections_every: int) -> bytes:
     # Every Nth event corrects a checkpoint created earlier in the run, exercising
     # the expensive path: lock the prior state, reverse its contribution, apply the
     # new one.
-    is_correction = (
-        corrections_every and i % corrections_every == 0 and i >= corrections_every
-    )
+    is_correction = corrections_every and i % corrections_every == 0 and i >= corrections_every
     source = i - corrections_every if is_correction else i
     checkpoint_id, counter, meal, ctype, status, unit = _slot(source, counters)
 
@@ -91,7 +89,7 @@ def build_payload(i: int, counters: int, corrections_every: int) -> bytes:
         "meal_type": meal,
         "checkpoint_type": ctype,
         "status": status,
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
     }
     if unit == "KG":
         payload["value"] = round(5 + (i % 90) * 0.5, 3)
@@ -114,10 +112,10 @@ def cleanup() -> None:
             ("checkpoint_state", "counter_id"),
             ("daily_counter_aggregation", "counter_id"),
         ):
-            session.execute(
-                text(f"DELETE FROM {table} WHERE {column} LIKE 'bench-counter-%'")
-            )
-        session.execute(text("DELETE FROM outbox_events WHERE payload->>'counter_id' LIKE 'bench-counter-%'"))
+            session.execute(text(f"DELETE FROM {table} WHERE {column} LIKE 'bench-counter-%'"))
+        session.execute(
+            text("DELETE FROM outbox_events WHERE payload->>'counter_id' LIKE 'bench-counter-%'")
+        )
         session.commit()
     finally:
         session.close()
@@ -134,8 +132,7 @@ def run(
 
     publisher = NullPublisher()
     payloads = [
-        build_payload(shard * events + i, counters, corrections_every)
-        for i in range(events)
+        build_payload(shard * events + i, counters, corrections_every) for i in range(events)
     ]
 
     outcomes: dict[str, int] = {}
@@ -287,9 +284,7 @@ def main() -> None:
         )
         print(f"fleet of {args.instances} consumers (deployed topology)")
     else:
-        batched = run(
-            args.events, args.batch_size, args.counters, args.corrections_every
-        )
+        batched = run(args.events, args.batch_size, args.counters, args.corrections_every)
         print("single consumer process")
     for key, value in batched.items():
         print(f"  {key}: {value}")

@@ -1,8 +1,13 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from checkpoint_platform.domain.enums import CheckpointStatus, CheckpointType, EventType, MealType
+from checkpoint_platform.domain.enums import (
+    CheckpointStatus,
+    CheckpointType,
+    EventType,
+    MealType,
+)
 from checkpoint_platform.domain.events import CheckpointCreateRequest, CheckpointEvent
 
 
@@ -18,7 +23,10 @@ def test_create_request_defaults():
 
 
 def test_serialize_roundtrip():
-    from checkpoint_platform.infrastructure.messaging.serializer import deserialize, serialize
+    from checkpoint_platform.infrastructure.messaging.serializer import (
+        deserialize,
+        serialize,
+    )
 
     ev = CheckpointEvent(
         event_id=uuid4(),
@@ -33,7 +41,7 @@ def test_serialize_roundtrip():
         status=CheckpointStatus.COMPLETED,
         value=Decimal("100.5"),
         unit="KG",
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
     )
     raw = serialize(ev)
     data = deserialize(raw)

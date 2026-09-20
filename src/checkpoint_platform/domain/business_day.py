@@ -10,7 +10,7 @@ date through this module so the boundary is one configured timezone.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -26,7 +26,7 @@ def _zone(name: str) -> ZoneInfo:
 def ensure_aware(moment: datetime) -> datetime:
     """Treat naive timestamps as UTC rather than comparing across tz-awareness."""
     if moment.tzinfo is None:
-        return moment.replace(tzinfo=timezone.utc)
+        return moment.replace(tzinfo=UTC)
     return moment
 
 
@@ -39,4 +39,4 @@ def business_date(moment: datetime, tz_name: str | None = None) -> date:
 
 
 def business_today(tz_name: str | None = None) -> date:
-    return business_date(datetime.now(timezone.utc), tz_name)
+    return business_date(datetime.now(UTC), tz_name)

@@ -18,11 +18,14 @@ from __future__ import annotations
 
 import signal
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from checkpoint_platform.config import get_settings
 from checkpoint_platform.config.container import get_session
-from checkpoint_platform.infrastructure.observability.logging import get_logger, setup_logging
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
 from checkpoint_platform.infrastructure.observability.metrics import (
     DLQ_PENDING,
     OUTBOX_PENDING,
@@ -44,7 +47,7 @@ _running = True
 CHUNK = 20_000
 
 
-def _handle_signal(signum, frame) -> None:  # noqa: ARG001
+def _handle_signal(signum, frame) -> None:
     global _running
     _running = False
 
@@ -52,7 +55,7 @@ def _handle_signal(signum, frame) -> None:  # noqa: ARG001
 def prune_once(session) -> dict[str, int]:
     """One pruning pass. Chunked deletes keep each statement's lock hold short."""
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     removed = {
         "processed_events": ProcessedEventRepo(session).prune_older_than(
@@ -125,7 +128,8 @@ def run(once: bool = False) -> None:
         # immediately instead of waiting out the full interval.
         slept = 0.0
         interval = (
-            1.0 if any(count >= CHUNK for count in removed.values())
+            1.0
+            if any(count >= CHUNK for count in removed.values())
             else settings.maintenance_interval_seconds
         )
         while _running and slept < interval:

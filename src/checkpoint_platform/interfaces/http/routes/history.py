@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 
 from flask import Blueprint, current_app, jsonify, request
 
-from checkpoint_platform.domain.business_day import business_today
 from checkpoint_platform.config.container import get_query_service, get_session
+from checkpoint_platform.domain.business_day import business_today
 
 bp = Blueprint("history", __name__)
 
@@ -15,7 +15,7 @@ bp = Blueprint("history", __name__)
 def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
 
 
 @bp.get("/history/aggregations/counter/<counter_id>")
@@ -28,9 +28,7 @@ def counter_agg_history(counter_id: str):
     try:
         svc = get_query_service(session, current_app.extensions["cache"])
         return jsonify(
-            svc.counter_history(
-                counter_id, from_date=from_date, to_date=to_date, meal_type=meal
-            )
+            svc.counter_history(counter_id, from_date=from_date, to_date=to_date, meal_type=meal)
         )
     finally:
         session.close()

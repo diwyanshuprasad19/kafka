@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -68,10 +67,10 @@ class Settings(BaseSettings):
 
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_security_protocol: str = "PLAINTEXT"
-    kafka_sasl_mechanism: Optional[str] = None
-    kafka_sasl_username: Optional[str] = None
-    kafka_sasl_password: Optional[str] = None
-    kafka_ssl_ca_location: Optional[str] = None
+    kafka_sasl_mechanism: str | None = None
+    kafka_sasl_username: str | None = None
+    kafka_sasl_password: str | None = None
+    kafka_ssl_ca_location: str | None = None
 
     checkpoint_topic: str = "checkpoint.events.v1"
     retry_topic: str = "checkpoint.retry.v1"
@@ -85,9 +84,7 @@ class Settings(BaseSettings):
     consumer_group_id: str = "checkpoint-aggregation-service"
     reporting_consumer_group_id: str = "reporting-service"
 
-    database_url: str = (
-        "postgresql+psycopg://checkpoint:checkpoint@localhost:5432/aggregation"
-    )
+    database_url: str = "postgresql+psycopg://checkpoint:checkpoint@localhost:5432/aggregation"
     db_pool_size: int = 10
     db_max_overflow: int = 20
 
@@ -128,10 +125,10 @@ class Settings(BaseSettings):
     # reliable | high  — high tunes batches/compression for 50k/s design target
     kafka_throughput_mode: str = "reliable"
 
-    gcp_project_id: Optional[str] = None
+    gcp_project_id: str | None = None
     gcp_region: str = "asia-south1"
-    alloydb_instance: Optional[str] = None
-    alloydb_cluster: Optional[str] = None
+    alloydb_instance: str | None = None
+    alloydb_cluster: str | None = None
 
     @property
     def is_prod(self) -> bool:

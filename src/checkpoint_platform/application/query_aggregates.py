@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -15,7 +15,6 @@ from checkpoint_platform.infrastructure.persistence.models import (
     CheckpointState,
     ClientDailyAggregation,
     DailyCounterAggregation,
-    DlqRecord,
     OutboxEvent,
     ProcessedEvent,
     ReportingSnapshot,
@@ -29,10 +28,10 @@ from checkpoint_platform.infrastructure.persistence.repositories import (
 
 def _age_seconds(rows) -> float:
     """How stale a rollup answer is — the oldest restatement among the rows read."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     oldest = min(r.refreshed_at for r in rows)
-    return round((datetime.now(timezone.utc) - oldest).total_seconds(), 1)
+    return round((datetime.now(UTC) - oldest).total_seconds(), 1)
 
 
 def _rollup_totals(rows) -> dict[str, Any]:
@@ -54,12 +53,8 @@ def _rollup_totals(rows) -> dict[str, Any]:
     incidents = totals["incident_count"]
     open_incidents = totals["open_incidents"]
 
-    totals["compliance_percentage"] = round(
-        (completed / total * 100.0) if total else 0.0, 2
-    )
-    totals["wastage_percentage"] = round(
-        (wastage / prepared * 100.0) if prepared else 0.0, 2
-    )
+    totals["compliance_percentage"] = round((completed / total * 100.0) if total else 0.0, 2)
+    totals["wastage_percentage"] = round((wastage / prepared * 100.0) if prepared else 0.0, 2)
     totals["incident_closure_percentage"] = round(
         ((incidents - open_incidents) / incidents * 100.0) if incidents else 0.0, 2
     )
@@ -170,11 +165,7 @@ class AggregateQueryService:
         self.history_repo = HistoryRepo(session)
         self.checkpoint_repo = CheckpointRepo(session)
 
-    # ----- single-day aggregates (cached) -----
-
-    def get_counter(
-        self, counter_id: str, day: str, meal_type: str
-    ) -> Optional[dict[str, Any]]:
+    def get_counter(self, counter_id: str, day: str, meal_type: str) -> dict[str, Any] | None:
         cached = self.cache.get(day, counter_id, meal_type)
         if cached:
             cached = dict(cached)
@@ -195,23 +186,21 @@ class AggregateQueryService:
         self.cache.set(day, counter_id, meal_type, payload)
         return payload
 
-    def get_cafe(self, cafe_id: str, day: str) -> Optional[dict[str, Any]]:
+    def get_cafe(self, cafe_id: str, day: str) -> dict[str, Any] | None:
         cached = self.cache.get_cafe(day, cafe_id)
         if cached:
             cached = dict(cached)
             cached["cache"] = "hit"
             return cached
 
-        payload = self._cafe_from_rollup(cafe_id, day) or self._cafe_from_counters(
-            cafe_id, day
-        )
+        payload = self._cafe_from_rollup(cafe_id, day) or self._cafe_from_counters(cafe_id, day)
         if payload is None:
             return None
         payload["cache"] = "miss"
         self.cache.set_cafe(day, cafe_id, payload)
         return payload
 
-    def _cafe_from_rollup(self, cafe_id: str, day: str) -> Optional[dict[str, Any]]:
+    def _cafe_from_rollup(self, cafe_id: str, day: str) -> dict[str, Any] | None:
         rows = (
             self.session.execute(
                 select(CafeDailyAggregation).where(
@@ -238,7 +227,7 @@ class AggregateQueryService:
         )
         return payload
 
-    def _cafe_from_counters(self, cafe_id: str, day: str) -> Optional[dict[str, Any]]:
+    def _cafe_from_counters(self, cafe_id: str, day: str) -> dict[str, Any] | None:
         """Fallback when the rollup worker has not covered this key yet.
 
         Correctness must not depend on a background worker having run, so the API
@@ -316,8 +305,6 @@ class AggregateQueryService:
         )
         return payload
 
-    # ----- date-range history (aggregates) -----
-
     def counter_history(
         self,
         counter_id: str,
@@ -347,16 +334,16 @@ class AggregateQueryService:
             "items": [_agg_row(r) for r in rows],
         }
 
-    def cafe_history(
-        self, cafe_id: str, *, from_date: str, to_date: str
-    ) -> dict[str, Any]:
+    def cafe_history(self, cafe_id: str, *, from_date: str, to_date: str) -> dict[str, Any]:
         rows = list(
             self.session.execute(
-                select(DailyCounterAggregation).where(
+                select(DailyCounterAggregation)
+                .where(
                     DailyCounterAggregation.cafe_id == cafe_id,
                     DailyCounterAggregation.aggregation_date >= date.fromisoformat(from_date),
                     DailyCounterAggregation.aggregation_date <= date.fromisoformat(to_date),
-                ).order_by(DailyCounterAggregation.aggregation_date.asc())
+                )
+                .order_by(DailyCounterAggregation.aggregation_date.asc())
             )
             .scalars()
             .all()
@@ -395,16 +382,16 @@ class AggregateQueryService:
             "day_count": len(days),
         }
 
-    def client_history(
-        self, client_id: str, *, from_date: str, to_date: str
-    ) -> dict[str, Any]:
+    def client_history(self, client_id: str, *, from_date: str, to_date: str) -> dict[str, Any]:
         rows = list(
             self.session.execute(
-                select(DailyCounterAggregation).where(
+                select(DailyCounterAggregation)
+                .where(
                     DailyCounterAggregation.client_id == client_id,
                     DailyCounterAggregation.aggregation_date >= date.fromisoformat(from_date),
                     DailyCounterAggregation.aggregation_date <= date.fromisoformat(to_date),
-                ).order_by(DailyCounterAggregation.aggregation_date.asc())
+                )
+                .order_by(DailyCounterAggregation.aggregation_date.asc())
             )
             .scalars()
             .all()
@@ -440,9 +427,7 @@ class AggregateQueryService:
             "day_count": len(days),
         }
 
-    # ----- checkpoint current state + event history -----
-
-    def get_checkpoint_state(self, checkpoint_id: str) -> Optional[dict[str, Any]]:
+    def get_checkpoint_state(self, checkpoint_id: str) -> dict[str, Any] | None:
         row = self.session.get(CheckpointState, checkpoint_id)
         return _state_row(row) if row else None
 
@@ -458,9 +443,7 @@ class AggregateQueryService:
             "items": [_state_row(r) for r in rows],
         }
 
-    def checkpoint_event_history(
-        self, checkpoint_id: str, *, limit: int = 100
-    ) -> dict[str, Any]:
+    def checkpoint_event_history(self, checkpoint_id: str, *, limit: int = 100) -> dict[str, Any]:
         rows = self.history_repo.list_for_checkpoint(checkpoint_id, limit=limit)
         return {
             "checkpoint_id": checkpoint_id,
@@ -516,9 +499,7 @@ class AggregateQueryService:
             "items": [_history_row(r) for r in rows],
         }
 
-    # ----- audit / ops reads -----
-
-    def processed_event(self, event_id: str) -> Optional[dict[str, Any]]:
+    def processed_event(self, event_id: str) -> dict[str, Any] | None:
         try:
             uid = UUID(event_id)
         except ValueError:
@@ -559,7 +540,7 @@ class AggregateQueryService:
 
     def reporting_snapshot(
         self, counter_id: str, day: str, meal_type: str
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         row = self.session.execute(
             select(ReportingSnapshot).where(
                 ReportingSnapshot.counter_id == counter_id,
@@ -613,7 +594,7 @@ class AggregateQueryService:
             for r in rows
         ]
 
-    def get_dlq(self, dlq_id: int) -> Optional[dict[str, Any]]:
+    def get_dlq(self, dlq_id: int) -> dict[str, Any] | None:
         row = self.dlq_repo.get_by_id(dlq_id)
         if not row:
             return None

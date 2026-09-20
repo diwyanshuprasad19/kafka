@@ -1,10 +1,12 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from checkpoint_platform.application.ports import EventPublisher
 from checkpoint_platform.domain.events import CheckpointCreateRequest, CheckpointEvent
-from checkpoint_platform.infrastructure.observability.logging import get_correlation_id, get_logger
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_correlation_id,
+    get_logger,
+)
 
 logger = get_logger(__name__)
 
@@ -29,7 +31,7 @@ class CheckpointPublishService:
             status=req.status,
             value=req.value,
             unit=req.unit,
-            occurred_at=req.occurred_at or datetime.now(timezone.utc),
+            occurred_at=req.occurred_at or datetime.now(UTC),
             correlation_id=get_correlation_id(),
         )
         self.publisher.publish_checkpoint(event)

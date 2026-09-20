@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -36,16 +36,16 @@ class CheckpointEvent(BaseModel):
     checkpoint_type: CheckpointType
     status: CheckpointStatus
 
-    value: Optional[Decimal] = None
-    unit: Optional[str] = None
+    value: Decimal | None = None
+    unit: str | None = None
 
     occurred_at: datetime
     retry_count: int = Field(default=0, ge=0)
 
     # Observability / re-ingestion metadata (optional on the wire)
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
     reingested: bool = False
-    reingest_from_dlq_id: Optional[int] = None
+    reingest_from_dlq_id: int | None = None
 
     @field_validator("value", mode="before")
     @classmethod
@@ -61,7 +61,7 @@ class CheckpointEvent(BaseModel):
 
     @field_validator("value")
     @classmethod
-    def value_must_be_finite(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+    def value_must_be_finite(cls, v: Decimal | None) -> Decimal | None:
         if v is None:
             return None
         if not v.is_finite():
@@ -85,15 +85,11 @@ class CheckpointEvent(BaseModel):
         settings = get_settings()
 
         if not is_supported_unit(self.checkpoint_type, self.unit):
-            raise ValueError(
-                f"unit {self.unit!r} is not valid for {self.checkpoint_type.value}"
-            )
+            raise ValueError(f"unit {self.unit!r} is not valid for {self.checkpoint_type.value}")
 
         if self.checkpoint_type in QUANTITY_TYPES:
             if self.value is None:
-                raise ValueError(
-                    f"{self.checkpoint_type.value} requires a numeric value"
-                )
+                raise ValueError(f"{self.checkpoint_type.value} requires a numeric value")
             if self.value < 0:
                 raise ValueError("quantity value cannot be negative")
 
@@ -106,7 +102,7 @@ class CheckpointEvent(BaseModel):
                     f"{settings.max_quantity_kg}kg — likely a faulty scale"
                 )
 
-        skew = self.occurred_at - datetime.now(timezone.utc)
+        skew = self.occurred_at - datetime.now(UTC)
         if skew > timedelta(seconds=settings.max_clock_skew_seconds):
             raise ValueError(
                 f"occurred_at is {int(skew.total_seconds())}s in the future, beyond "
@@ -130,7 +126,7 @@ class CheckpointEvent(BaseModel):
 class CheckpointCreateRequest(BaseModel):
     """HTTP API payload to create/update a checkpoint (async via Kafka)."""
 
-    checkpoint_id: Optional[str] = None
+    checkpoint_id: str | None = None
     checkpoint_version: int = 1
     client_id: str
     cafe_id: str
@@ -138,10 +134,10 @@ class CheckpointCreateRequest(BaseModel):
     meal_type: MealType = MealType.LUNCH
     checkpoint_type: CheckpointType
     status: CheckpointStatus = CheckpointStatus.COMPLETED
-    value: Optional[Decimal] = None
-    unit: Optional[str] = None
+    value: Decimal | None = None
+    unit: str | None = None
     event_type: EventType = EventType.COMPLETED
-    occurred_at: Optional[datetime] = None
+    occurred_at: datetime | None = None
 
 
 class AggregationCompletedEvent(BaseModel):

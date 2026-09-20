@@ -1,6 +1,6 @@
 """Redis cache for frequently read aggregates. Optional — disabled if Redis is down."""
 
-from typing import Any, Optional
+from typing import Any
 
 import redis
 
@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 class RedisAggregateCache:
     def __init__(self) -> None:
         self.settings = get_settings()
-        self._client: Optional[redis.Redis] = None
+        self._client: redis.Redis | None = None
         if self.settings.redis_enabled:
             try:
                 self._client = redis.from_url(
@@ -30,7 +30,7 @@ class RedisAggregateCache:
     def _key(self, date: str, counter_id: str, meal_type: str) -> str:
         return f"agg:{date}:{counter_id}:{meal_type}"
 
-    def get(self, date: str, counter_id: str, meal_type: str) -> Optional[dict]:
+    def get(self, date: str, counter_id: str, meal_type: str) -> dict | None:
         if not self._client:
             return None
         try:
@@ -67,7 +67,7 @@ class RedisAggregateCache:
     def cafe_key(self, date: str, cafe_id: str) -> str:
         return f"cafe_agg:{date}:{cafe_id}"
 
-    def get_cafe(self, date: str, cafe_id: str) -> Optional[dict[str, Any]]:
+    def get_cafe(self, date: str, cafe_id: str) -> dict[str, Any] | None:
         if not self._client:
             return None
         try:

@@ -4,18 +4,27 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from checkpoint_platform.infrastructure.persistence.session import init_db, session_scope
-from checkpoint_platform.infrastructure.messaging.kafka_producer import CheckpointProducer
-from checkpoint_platform.domain.events import CheckpointEvent
 from checkpoint_platform.application.aggregation import AggregationService
+from checkpoint_platform.domain.enums import (
+    CheckpointStatus,
+    CheckpointType,
+    EventType,
+    MealType,
+)
+from checkpoint_platform.domain.events import CheckpointEvent
 from checkpoint_platform.domain.exceptions import DuplicateEventError, StaleVersionError
-from checkpoint_platform.domain.enums import CheckpointStatus, CheckpointType, EventType, MealType
+from checkpoint_platform.infrastructure.messaging.kafka_producer import (
+    CheckpointProducer,
+)
 from checkpoint_platform.infrastructure.observability.logging import setup_logging
-
+from checkpoint_platform.infrastructure.persistence.session import (
+    init_db,
+    session_scope,
+)
 
 DEMO_COUNTERS = [
     ("client-10", "cafe-22", "counter-450"),
@@ -58,7 +67,7 @@ def _event(
 
 
 def build_demo_events() -> list[CheckpointEvent]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     events: list[CheckpointEvent] = []
 
     for client_id, cafe_id, counter_id in DEMO_COUNTERS:
@@ -80,9 +89,9 @@ def build_demo_events() -> list[CheckpointEvent]:
         )
         # Food prepared / consumed / wastage
         for cp_type, value in [
-            (CheckpointType.FOOD_PREPARED, Decimal("500")),
-            (CheckpointType.FOOD_CONSUMED, Decimal("455")),
-            (CheckpointType.FOOD_WASTAGE, Decimal("45")),
+            (CheckpointType.FOOD_PREPARED, Decimal(500)),
+            (CheckpointType.FOOD_CONSUMED, Decimal(455)),
+            (CheckpointType.FOOD_WASTAGE, Decimal(45)),
         ]:
             events.append(
                 CheckpointEvent(
@@ -129,7 +138,7 @@ def build_demo_events() -> list[CheckpointEvent]:
                 meal_type=MealType.LUNCH,
                 checkpoint_type=CheckpointType.HOT_FOOD_TEMPERATURE,
                 status=CheckpointStatus.PASS,
-                value=Decimal("68"),
+                value=Decimal(68),
                 unit="CELSIUS",
                 occurred_at=now,
             )
@@ -144,7 +153,7 @@ def build_demo_events() -> list[CheckpointEvent]:
                 now,
                 CheckpointType.FOOD_RECEIVED,
                 CheckpointStatus.COMPLETED,
-                value=Decimal("520"),
+                value=Decimal(520),
                 unit="KG",
             )
         )
@@ -179,7 +188,7 @@ def build_demo_events() -> list[CheckpointEvent]:
                 now,
                 CheckpointType.COLD_STORAGE_TEMPERATURE,
                 CheckpointStatus.FAIL,
-                value=Decimal("11"),
+                value=Decimal(11),
                 unit="CELSIUS",
             )
         )
@@ -205,7 +214,7 @@ def build_demo_events() -> list[CheckpointEvent]:
             now,
             CheckpointType.FOOD_WASTAGE,
             CheckpointStatus.COMPLETED,
-            value=Decimal("40"),
+            value=Decimal(40),
             unit="KG",
             version=2,
             event_type=EventType.UPDATED,

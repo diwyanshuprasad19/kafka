@@ -8,19 +8,26 @@ locks, version-guarded updates, ON CONFLICT arithmetic) do not exist in a mock.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
 from checkpoint_platform.application.aggregation import AggregationService
-from checkpoint_platform.application.bad_scenarios import PROD_BAD_SCENARIOS, scenario_ids
+from checkpoint_platform.application.bad_scenarios import (
+    PROD_BAD_SCENARIOS,
+    scenario_ids,
+)
 from checkpoint_platform.application.event_processing import EventProcessor
 from checkpoint_platform.domain.business_day import business_date
-from checkpoint_platform.domain.enums import CheckpointStatus, CheckpointType, EventType, MealType
+from checkpoint_platform.domain.enums import (
+    CheckpointStatus,
+    CheckpointType,
+    EventType,
+    MealType,
+)
 from checkpoint_platform.domain.events import CheckpointEvent
 from checkpoint_platform.domain.exceptions import DuplicateEventError, StaleVersionError
 from checkpoint_platform.domain.units import to_kilograms
@@ -59,7 +66,7 @@ def make_event(
         status=status,
         value=Decimal(value) if value is not None else None,
         unit=unit,
-        occurred_at=occurred_at or datetime.now(timezone.utc),
+        occurred_at=occurred_at or datetime.now(UTC),
     )
 
 
@@ -80,9 +87,7 @@ def apply(session, event) -> None:
     session.flush()
 
 
-# ---------------------------------------------------------------------------
 # S19 — unit normalization
-# ---------------------------------------------------------------------------
 
 
 def test_s19_grams_are_stored_as_kilograms(session):
@@ -110,12 +115,10 @@ def test_s19_unit_correction_reverses_in_kilograms(session):
 
 
 def test_s19_pound_conversion():
-    assert to_kilograms(Decimal("10"), "LB") == Decimal("4.536")
+    assert to_kilograms(Decimal(10), "LB") == Decimal("4.536")
 
 
-# ---------------------------------------------------------------------------
 # S20 / S21 / S22 — corrections that move the aggregate row
-# ---------------------------------------------------------------------------
 
 
 def test_s20_meal_correction_reverses_the_old_meal(session):
@@ -132,9 +135,7 @@ def test_s20_meal_correction_reverses_the_old_meal(session):
 
 
 def test_s21_type_correction_reverses_the_old_column(session):
-    first = make_event(
-        version=1, value="100", checkpoint_type=CheckpointType.FOOD_PREPARED
-    )
+    first = make_event(version=1, value="100", checkpoint_type=CheckpointType.FOOD_PREPARED)
     apply(session, first)
     apply(
         session,
@@ -147,11 +148,11 @@ def test_s21_type_correction_reverses_the_old_column(session):
 
 
 def test_s22_cross_day_correction_reverses_the_old_day(session):
-    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+    yesterday = datetime.now(UTC) - timedelta(days=1)
     first = make_event(version=1, value="30", occurred_at=yesterday)
     apply(session, first)
 
-    today = datetime.now(timezone.utc)
+    today = datetime.now(UTC)
     apply(session, make_event(version=2, value="30", occurred_at=today))
 
     old_day = read_agg(session, date=business_date(yesterday))
@@ -162,7 +163,7 @@ def test_s22_cross_day_correction_reverses_the_old_day(session):
 
 
 def test_s22_completion_count_does_not_double_across_days(session):
-    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+    yesterday = datetime.now(UTC) - timedelta(days=1)
     first = make_event(
         version=1,
         value=None,
@@ -180,66 +181,62 @@ def test_s22_completion_count_does_not_double_across_days(session):
             unit=None,
             checkpoint_type=CheckpointType.STAFF_HYGIENE,
             status=CheckpointStatus.PASS,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         ),
     )
 
     old_day = read_agg(session, date=business_date(yesterday))
-    new_day = read_agg(session, date=business_date(datetime.now(timezone.utc)))
+    new_day = read_agg(session, date=business_date(datetime.now(UTC)))
     assert old_day.total_checkpoints == 0
     assert old_day.hygiene_pass_count == 0
     assert new_day.total_checkpoints == 1
     assert new_day.hygiene_pass_count == 1
 
 
-# ---------------------------------------------------------------------------
 # S23 — business-day boundary
-# ---------------------------------------------------------------------------
 
 
 def test_s23_late_evening_ist_stays_on_the_local_day():
     # 23:40 IST on the 20th is 18:10 UTC the same day.
-    moment = datetime(2026, 3, 20, 18, 10, tzinfo=timezone.utc)
+    moment = datetime(2026, 3, 20, 18, 10, tzinfo=UTC)
     assert business_date(moment, "Asia/Kolkata").isoformat() == "2026-03-20"
 
 
 def test_s23_early_morning_ist_belongs_to_the_local_day():
     # 01:30 IST on the 21st is 20:00 UTC on the 20th — UTC would file it a day early.
-    moment = datetime(2026, 3, 20, 20, 0, tzinfo=timezone.utc)
+    moment = datetime(2026, 3, 20, 20, 0, tzinfo=UTC)
     assert business_date(moment, "Asia/Kolkata").isoformat() == "2026-03-21"
     assert moment.date().isoformat() == "2026-03-20"
 
 
 def test_s23_naive_timestamps_are_read_as_utc():
     # The common producer bug is datetime.utcnow(), which returns naive UTC.
-    naive_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    naive_utc = datetime.now(UTC).replace(tzinfo=None)
     event = make_event(occurred_at=naive_utc)
     assert event.occurred_at.tzinfo is not None
-    assert event.occurred_at == naive_utc.replace(tzinfo=timezone.utc)
+    assert event.occurred_at == naive_utc.replace(tzinfo=UTC)
 
 
 def test_s23_naive_local_timestamp_is_rejected_rather_than_misbucketed():
     # A naive IST timestamp looks 5.5h in the future once read as UTC. Rejecting it
     # is safer than silently filing the event under the wrong business day.
-    naive_ist = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=5, minutes=30)
+    naive_ist = datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=5, minutes=30)
     with pytest.raises(Exception) as exc:
         make_event(occurred_at=naive_ist)
     assert "naive local timestamp" in str(exc.value)
 
 
-# ---------------------------------------------------------------------------
 # S24 / S25 — hostile inputs rejected before they reach an aggregate
-# ---------------------------------------------------------------------------
 
 
 def test_s24_future_clock_skew_is_rejected():
     with pytest.raises(Exception) as exc:
-        make_event(occurred_at=datetime.now(timezone.utc) + timedelta(days=365))
+        make_event(occurred_at=datetime.now(UTC) + timedelta(days=365))
     assert "future" in str(exc.value)
 
 
 def test_s24_small_skew_is_tolerated():
-    event = make_event(occurred_at=datetime.now(timezone.utc) + timedelta(seconds=60))
+    event = make_event(occurred_at=datetime.now(UTC) + timedelta(seconds=60))
     assert event.checkpoint_version == 1
 
 
@@ -266,9 +263,7 @@ def test_s25_nan_is_rejected():
         make_event(value="NaN")
 
 
-# ---------------------------------------------------------------------------
 # S26 / S27 / S33 — consumer-loop survival
-# ---------------------------------------------------------------------------
 
 
 class RecordingPublisher:
@@ -339,9 +334,7 @@ def test_s33_retry_count_of_ignores_garbage():
     assert EventProcessor._retry_count_of({"retry_count": 2}) == 2
 
 
-# ---------------------------------------------------------------------------
 # S28 / S29 / S30 — batching and concurrency
-# ---------------------------------------------------------------------------
 
 
 def test_s28_poison_event_does_not_discard_its_batch(session):
@@ -406,9 +399,7 @@ def test_s30_claim_is_atomic(session):
     assert repo.claim(repo_event_id, "cp-claim") is False
 
 
-# ---------------------------------------------------------------------------
 # S31 — retry backoff must not stall the partition
-# ---------------------------------------------------------------------------
 
 
 def test_s31_not_due_retry_is_requeued_without_incrementing(session, monkeypatch):
@@ -418,9 +409,7 @@ def test_s31_not_due_retry_is_requeued_without_incrementing(session, monkeypatch
 
     payload = make_event(value="10").model_dump(mode="json")
     payload["retry_count"] = 1
-    payload["next_retry_at"] = (
-        datetime.now(timezone.utc) + timedelta(seconds=30)
-    ).isoformat()
+    payload["next_retry_at"] = (datetime.now(UTC) + timedelta(seconds=30)).isoformat()
 
     outcome = processor.process_raw(
         json.dumps(payload).encode(), processor.settings.retry_topic, 0, 1
@@ -434,9 +423,7 @@ def test_s31_due_retry_is_processed(session):
     processor = EventProcessor(session, RecordingPublisher())
     payload = make_event(value="10").model_dump(mode="json")
     payload["retry_count"] = 1
-    payload["next_retry_at"] = (
-        datetime.now(timezone.utc) - timedelta(seconds=5)
-    ).isoformat()
+    payload["next_retry_at"] = (datetime.now(UTC) - timedelta(seconds=5)).isoformat()
 
     outcome = processor.process_raw(
         json.dumps(payload).encode(), processor.settings.retry_topic, 0, 1
@@ -449,9 +436,7 @@ def test_s31_corrupt_next_retry_at_does_not_crash(session):
     assert processor._backoff_wait_seconds({"next_retry_at": "not-a-date"}, 0) == 0.0
 
 
-# ---------------------------------------------------------------------------
 # S32 — retention
-# ---------------------------------------------------------------------------
 
 
 def test_s32_maintenance_prunes_expired_idempotency_keys(session):
@@ -463,17 +448,10 @@ def test_s32_maintenance_prunes_expired_idempotency_keys(session):
     apply(session, event)
     session.commit()
 
+    session.execute(text("UPDATE processed_events SET processed_at = now() - interval '30 days'"))
+    session.execute(text("UPDATE checkpoint_history SET recorded_at = now() - interval '400 days'"))
     session.execute(
-        text("UPDATE processed_events SET processed_at = now() - interval '30 days'")
-    )
-    session.execute(
-        text("UPDATE checkpoint_history SET recorded_at = now() - interval '400 days'")
-    )
-    session.execute(
-        text(
-            "UPDATE outbox_events SET published = true, "
-            "published_at = now() - interval '30 days'"
-        )
+        text("UPDATE outbox_events SET published = true, published_at = now() - interval '30 days'")
     )
     session.commit()
 
@@ -491,18 +469,14 @@ def test_s32_pending_dlq_records_are_never_pruned(session):
     EventProcessor(session, RecordingPublisher()).process_raw(
         b"{broken", "checkpoint.events.v1", 0, 1
     )
-    session.execute(
-        text("UPDATE dlq_records SET created_at = now() - interval '400 days'")
-    )
+    session.execute(text("UPDATE dlq_records SET created_at = now() - interval '400 days'"))
     session.commit()
 
     assert prune_once(session)["dlq_records"] == 0
     assert session.execute(select(DlqRecord)).scalars().all()
 
 
-# ---------------------------------------------------------------------------
 # Audit trail
-# ---------------------------------------------------------------------------
 
 
 def test_rejected_correction_is_recorded_in_history(session):
@@ -535,9 +509,7 @@ def test_history_records_normalized_kilograms(session):
     assert row.value_kg == Decimal("2.500")
 
 
-# ---------------------------------------------------------------------------
 # Full operational domain: incidents, pending work, received quantity
-# ---------------------------------------------------------------------------
 
 
 def test_incident_lifecycle_closes_out(session):
@@ -582,7 +554,11 @@ def test_pending_checkpoint_moves_to_completed(session):
     )
     apply(session, pending)
     agg = read_agg(session, date=business_date(pending.occurred_at))
-    assert (agg.total_checkpoints, agg.pending_checkpoints, agg.completed_checkpoints) == (1, 1, 0)
+    assert (
+        agg.total_checkpoints,
+        agg.pending_checkpoints,
+        agg.completed_checkpoints,
+    ) == (1, 1, 0)
 
     apply(
         session,
@@ -595,13 +571,15 @@ def test_pending_checkpoint_moves_to_completed(session):
         ),
     )
     agg = read_agg(session, date=business_date(pending.occurred_at))
-    assert (agg.total_checkpoints, agg.pending_checkpoints, agg.completed_checkpoints) == (1, 0, 1)
+    assert (
+        agg.total_checkpoints,
+        agg.pending_checkpoints,
+        agg.completed_checkpoints,
+    ) == (1, 0, 1)
 
 
 def test_food_received_is_tracked_separately(session):
-    received = make_event(
-        value="500", checkpoint_type=CheckpointType.FOOD_RECEIVED
-    )
+    received = make_event(value="500", checkpoint_type=CheckpointType.FOOD_RECEIVED)
     apply(session, received)
     agg = read_agg(session, date=business_date(received.occurred_at))
     assert agg.food_received_kg == Decimal("500.000")
@@ -661,7 +639,9 @@ def test_delta_columns_match_the_table():
     from checkpoint_platform.infrastructure.persistence.models import (
         DailyCounterAggregation,
     )
-    from checkpoint_platform.infrastructure.persistence.repositories import DELTA_COLUMNS
+    from checkpoint_platform.infrastructure.persistence.repositories import (
+        DELTA_COLUMNS,
+    )
 
     table_columns = set(DailyCounterAggregation.__table__.c.keys())
     assert set(DELTA_COLUMNS) <= table_columns

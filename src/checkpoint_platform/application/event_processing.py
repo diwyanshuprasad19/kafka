@@ -8,8 +8,7 @@ applied nor parked would otherwise block its partition forever.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -72,9 +71,7 @@ class EventProcessor:
         # message then gets a savepoint so one bad event can't discard the batch.
         self.manage_transaction = manage_transaction
 
-    # ------------------------------------------------------------------
     # transaction scoping
-    # ------------------------------------------------------------------
 
     def _begin_scope(self):
         """Open a scope for one message's writes.
@@ -96,9 +93,7 @@ class EventProcessor:
         elif savepoint.is_active:
             savepoint.rollback()
 
-    # ------------------------------------------------------------------
     # main entry point
-    # ------------------------------------------------------------------
 
     def process_raw(
         self,
@@ -231,7 +226,7 @@ class EventProcessor:
             )
             return "dlq"
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._discard_scope(scope)
             transient = is_transient_error(exc)
             logger.exception(
@@ -255,9 +250,7 @@ class EventProcessor:
             self._to_retry(data, event.counter_id, retry_count)
             return "retry"
 
-    # ------------------------------------------------------------------
     # helpers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _preview(raw_value: bytes) -> str:
@@ -271,7 +264,7 @@ class EventProcessor:
         except (TypeError, ValueError):
             return 0
 
-    def _defer_if_not_due(self, data: dict, retry_count: int) -> Optional[str]:
+    def _defer_if_not_due(self, data: dict, retry_count: int) -> str | None:
         """Park a retry that isn't due yet instead of sleeping on the partition.
 
         Sleeping here would stall every other message in the partition — at ~833
@@ -301,10 +294,10 @@ class EventProcessor:
         next_retry_at = data.get("next_retry_at")
         if next_retry_at:
             try:
-                target = datetime.fromisoformat(str(next_retry_at).replace("Z", "+00:00"))
+                target = datetime.fromisoformat(str(next_retry_at))
                 if target.tzinfo is None:
-                    target = target.replace(tzinfo=timezone.utc)
-                return max(0.0, (target - datetime.now(timezone.utc)).total_seconds())
+                    target = target.replace(tzinfo=UTC)
+                return max(0.0, (target - datetime.now(UTC)).total_seconds())
             except (TypeError, ValueError):
                 pass
         if retry_count:
@@ -315,10 +308,8 @@ class EventProcessor:
         delay = retry_delay_seconds(retry_count, self.settings.retry_base_delay_ms)
         payload = dict(data)
         payload["retry_count"] = retry_count + 1
-        payload["retried_at"] = datetime.now(timezone.utc).isoformat()
-        payload["next_retry_at"] = (
-            datetime.now(timezone.utc) + timedelta(seconds=delay)
-        ).isoformat()
+        payload["retried_at"] = datetime.now(UTC).isoformat()
+        payload["next_retry_at"] = (datetime.now(UTC) + timedelta(seconds=delay)).isoformat()
 
         RETRY_COUNT.inc()
         EVENTS_PROCESSED.labels(outcome="retry").inc()
@@ -348,7 +339,7 @@ class EventProcessor:
         can advance. Publishing first would raise, leave the offset uncommitted, and
         redeliver the same poison message forever.
         """
-        failed_at = datetime.now(timezone.utc)
+        failed_at = datetime.now(UTC)
 
         scope = self._begin_scope()
         try:
@@ -362,7 +353,7 @@ class EventProcessor:
                 original_event=original_event,
             )
             self._keep_scope(scope)
-        except Exception:  # noqa: BLE001
+        except Exception:
             self._discard_scope(scope)
             logger.exception("dlq_db_persist_failed", reason=reason)
 
@@ -377,9 +368,7 @@ class EventProcessor:
         ).model_dump(mode="json")
 
         try:
-            self.publisher.publish_dlq(
-                payload, key=str(original_event.get("counter_id", "dlq"))
-            )
+            self.publisher.publish_dlq(payload, key=str(original_event.get("counter_id", "dlq")))
             self.publisher.flush()
         except Exception as exc:  # noqa: BLE001
             KAFKA_PUBLISH_ERRORS.inc()

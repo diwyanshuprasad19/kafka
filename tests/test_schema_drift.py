@@ -9,9 +9,8 @@ drop something that had never been created.
 
 from __future__ import annotations
 
-from sqlalchemy import text
-
 from conftest import TEST_DB_URL, alembic_config
+from sqlalchemy import text
 
 IGNORED_TABLES = {"alembic_version"}
 

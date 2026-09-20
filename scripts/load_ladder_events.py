@@ -8,7 +8,7 @@ measures the cheapest path instead of the real one.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 MEALS = ("BREAKFAST", "LUNCH", "SNACKS", "DINNER")
@@ -58,7 +58,7 @@ def build_event(i: int, counters: int) -> dict:
         "meal_type": meal,
         "checkpoint_type": checkpoint_type,
         "status": status,
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
     }
     if unit == "KG":
         event["value"] = round(5 + (source % 90) * 0.5, 3)

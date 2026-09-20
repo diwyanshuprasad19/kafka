@@ -66,9 +66,7 @@ def is_transient_error(exc: BaseException) -> bool:
 
     if any(h in blob for h in _PERMANENT_HINTS):
         # Still allow timeout/connection to win if also present
-        if any(h in blob for h in ("timeout", "connection", "operationalerror")):
-            return True
-        return False
+        return bool(any(h in blob for h in ("timeout", "connection", "operationalerror")))
     if any(h in blob for h in _TRANSIENT_HINTS):
         return True
 

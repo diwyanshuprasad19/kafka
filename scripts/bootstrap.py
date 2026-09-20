@@ -68,8 +68,9 @@ def wait_kafka(timeout: int = 60) -> None:
 
 
 def migrate() -> None:
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     root = _root()
     cfg = Config(str(root / "alembic.ini"))
@@ -103,7 +104,9 @@ def main() -> None:
 
     if not args.skip_kafka:
         wait_kafka(timeout=args.timeout)
-        from checkpoint_platform.infrastructure.messaging.kafka_admin import create_topics
+        from checkpoint_platform.infrastructure.messaging.kafka_admin import (
+            create_topics,
+        )
 
         create_topics()
         print("✓ topics")

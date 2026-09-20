@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import signal
 import time
+from datetime import UTC
 
 import structlog
 
@@ -35,7 +36,7 @@ def _stop(_signum, _frame) -> None:
 
 
 def refresh_once() -> int:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     with session_scope() as session:
         result = RollupRepo(session).refresh()
@@ -52,7 +53,7 @@ def refresh_once() -> int:
 
     # How stale the rollups are: the gap between now and the point in the counter
     # table the worker has caught up to.
-    lag = (datetime.now(timezone.utc) - result.watermark).total_seconds()
+    lag = (datetime.now(UTC) - result.watermark).total_seconds()
     ROLLUP_LAG_SECONDS.set(max(lag, 0.0))
     return result.rows
 
@@ -86,10 +87,10 @@ def main() -> None:
     while _running:
         try:
             refresh_once()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             # A failed pass is recoverable: the watermark only advances on success,
             # so the next pass covers the same ground.
-            log.error("rollup_pass_failed", error=str(exc), exc_info=True)
+            log.exception("rollup_pass_failed", error=str(exc))
         time.sleep(interval)
 
     log.info("rollup_worker_stopped")

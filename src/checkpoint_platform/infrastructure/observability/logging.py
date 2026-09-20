@@ -6,32 +6,32 @@ import logging
 import sys
 import uuid
 from contextvars import ContextVar
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 
 from checkpoint_platform.config import get_settings
 
-_correlation_id: ContextVar[Optional[str]] = ContextVar("correlation_id", default=None)
-_request_id: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+_correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
+_request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
 _service_name: ContextVar[str] = ContextVar("service_name", default="checkpoint-platform")
 
 
-def get_correlation_id() -> Optional[str]:
+def get_correlation_id() -> str | None:
     return _correlation_id.get()
 
 
-def get_request_id() -> Optional[str]:
+def get_request_id() -> str | None:
     return _request_id.get()
 
 
 def bind_context(**kwargs: Any) -> None:
     """Bind fields into structlog contextvars for the current request/task."""
-    if "correlation_id" in kwargs and kwargs["correlation_id"]:
+    if kwargs.get("correlation_id"):
         _correlation_id.set(str(kwargs["correlation_id"]))
-    if "request_id" in kwargs and kwargs["request_id"]:
+    if kwargs.get("request_id"):
         _request_id.set(str(kwargs["request_id"]))
-    if "service" in kwargs and kwargs["service"]:
+    if kwargs.get("service"):
         _service_name.set(str(kwargs["service"]))
     structlog.contextvars.bind_contextvars(**{k: v for k, v in kwargs.items() if v is not None})
 
@@ -43,17 +43,15 @@ def clear_context() -> None:
 
 
 def new_request_ids(
-    incoming_request_id: Optional[str] = None,
-    incoming_correlation_id: Optional[str] = None,
+    incoming_request_id: str | None = None,
+    incoming_correlation_id: str | None = None,
 ) -> tuple[str, str]:
     request_id = incoming_request_id or str(uuid.uuid4())
     correlation_id = incoming_correlation_id or request_id
     return request_id, correlation_id
 
 
-def _inject_context(
-    logger: logging.Logger, method_name: str, event_dict: dict
-) -> dict:  # noqa: ARG001
+def _inject_context(logger: logging.Logger, method_name: str, event_dict: dict) -> dict:
     event_dict.setdefault("service", _service_name.get())
     settings = get_settings()
     event_dict.setdefault("env", settings.app_env)

@@ -16,7 +16,7 @@ import multiprocessing as mp
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -62,7 +62,7 @@ def _make_event(i: int, counters: int) -> dict:
         "status": status,
         "value": value,
         "unit": unit,
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
         "retry_count": 0,
     }
 
@@ -73,14 +73,21 @@ def worker_dry(args: tuple) -> dict:
     for i in range(start_i, start_i + count):
         json.dumps(_make_event(i, counters))
     elapsed = time.perf_counter() - t0
-    return {"worker": worker_id, "events": count, "elapsed": elapsed, "rate": count / elapsed if elapsed else 0}
+    return {
+        "worker": worker_id,
+        "events": count,
+        "elapsed": elapsed,
+        "rate": count / elapsed if elapsed else 0,
+    }
 
 
 def worker_produce(args: tuple) -> dict:
     worker_id, start_i, count, counters, rate_per_sec, topic = args
     os.environ.setdefault("KAFKA_THROUGHPUT_MODE", "high")
     from checkpoint_platform.config import reload_settings
-    from checkpoint_platform.infrastructure.messaging.kafka_producer import KafkaEventPublisher
+    from checkpoint_platform.infrastructure.messaging.kafka_producer import (
+        KafkaEventPublisher,
+    )
 
     reload_settings()
     publisher = KafkaEventPublisher(throughput_mode="high")
@@ -112,7 +119,9 @@ def worker_produce(args: tuple) -> dict:
     }
 
 
-def run_load(*, events: int, rate_per_sec: float, workers: int, counters: int, dry_run: bool) -> None:
+def run_load(
+    *, events: int, rate_per_sec: float, workers: int, counters: int, dry_run: bool
+) -> None:
     workers = max(1, workers)
     chunk = events // workers
     rem = events % workers
@@ -138,12 +147,16 @@ def run_load(*, events: int, rate_per_sec: float, workers: int, counters: int, d
     wall = time.perf_counter() - t0
     total = sum(r["events"] for r in results)
     per_min = (total / wall) * 60 if wall else 0
-    print(f"workers={workers} events={total} wall={wall:.2f}s → {total / wall:.0f} evt/s ({per_min:.0f} evt/min)")
+    print(
+        f"workers={workers} events={total} wall={wall:.2f}s → {total / wall:.0f} evt/s ({per_min:.0f} evt/min)"
+    )
     for r in results:
         extra = "" if dry_run else f" delivered={r.get('delivered')} failed={r.get('failed')}"
         print(f"  worker-{r['worker']}: {r['rate']:.0f} evt/s{extra}")
     target_min = rate_per_sec * 60 if rate_per_sec else per_min
-    print(f"achieved={per_min:.0f} evt/min / target={target_min:.0f} evt/min ({(per_min / target_min * 100) if target_min else 0:.1f}%)")
+    print(
+        f"achieved={per_min:.0f} evt/min / target={target_min:.0f} evt/min ({(per_min / target_min * 100) if target_min else 0:.1f}%)"
+    )
 
 
 def run_ramp(duration: int, workers: int, counters: int, dry_run: bool) -> None:
@@ -154,7 +167,13 @@ def run_ramp(duration: int, workers: int, counters: int, dry_run: bool) -> None:
         rate = target_min / 60.0
         events = int(rate * duration)
         print(f"\n--- {target_min} evt/min for {duration}s (~{events} events) ---")
-        run_load(events=events, rate_per_sec=rate, workers=workers, counters=counters, dry_run=dry_run)
+        run_load(
+            events=events,
+            rate_per_sec=rate,
+            workers=workers,
+            counters=counters,
+            dry_run=dry_run,
+        )
 
 
 def print_plan() -> None:
@@ -167,8 +186,15 @@ def print_plan() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--events", type=int, default=50_000, help="Total events (default 1 min @ 50k/min)")
-    parser.add_argument("--rate-per-min", type=float, default=50_000, help="Target events per minute")
+    parser.add_argument(
+        "--events",
+        type=int,
+        default=50_000,
+        help="Total events (default 1 min @ 50k/min)",
+    )
+    parser.add_argument(
+        "--rate-per-min", type=float, default=50_000, help="Target events per minute"
+    )
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--counters", type=int, default=5000)
     parser.add_argument("--dry-run", action="store_true")

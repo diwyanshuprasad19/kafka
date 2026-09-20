@@ -45,8 +45,9 @@ def wait_pg(timeout: int = 60) -> None:
 
 
 def migrate() -> None:
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     cfg = Config(str(ROOT / "alembic.ini"))
     try:

@@ -1,9 +1,9 @@
-from flask import Blueprint, Response, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from pydantic import ValidationError
 
+from checkpoint_platform.application.reingestion import ReIngestionService
 from checkpoint_platform.config.container import get_session
 from checkpoint_platform.domain.events import ReingestDlqRequest, ReingestEventsRequest
-from checkpoint_platform.application.reingestion import ReIngestionService
 from checkpoint_platform.infrastructure.observability.logging import get_logger
 
 bp = Blueprint("reingest", __name__)
@@ -23,7 +23,7 @@ def reingest_dlq_bulk():
         publisher = current_app.extensions["publisher"]
         result = ReIngestionService(session, publisher).reingest_dlq(req)
         return jsonify(result), 202
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         session.rollback()
         logger.exception("reingest_dlq_api_failed", error=str(exc))
         return jsonify({"error": "reingest_failed", "detail": str(exc)}), 500
@@ -45,7 +45,7 @@ def reingest_dlq_one(dlq_id: int):
         publisher = current_app.extensions["publisher"]
         result = ReIngestionService(session, publisher).reingest_dlq(req)
         return jsonify(result), 202
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         session.rollback()
         logger.exception("reingest_dlq_one_failed", dlq_id=dlq_id, error=str(exc))
         return jsonify({"error": "reingest_failed", "detail": str(exc)}), 500
@@ -66,7 +66,7 @@ def reingest_events():
         publisher = current_app.extensions["publisher"]
         result = ReIngestionService(session, publisher).reingest_events(req)
         return jsonify(result), 202
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("reingest_events_api_failed", error=str(exc))
         return jsonify({"error": "reingest_failed", "detail": str(exc)}), 500
     finally:

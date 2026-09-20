@@ -1,9 +1,7 @@
-from datetime import date
-
 from flask import Blueprint, current_app, jsonify, request
 
-from checkpoint_platform.domain.business_day import business_today
 from checkpoint_platform.config.container import get_query_service, get_session
+from checkpoint_platform.domain.business_day import business_today
 
 bp = Blueprint("aggregations", __name__)
 

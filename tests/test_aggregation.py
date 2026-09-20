@@ -1,6 +1,6 @@
 """Unit tests for stateful aggregation, idempotency, and versioning."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -9,7 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from checkpoint_platform.application.aggregation import AggregationService
-from checkpoint_platform.domain.enums import CheckpointStatus, CheckpointType, EventType, MealType
+from checkpoint_platform.domain.enums import (
+    CheckpointStatus,
+    CheckpointType,
+    EventType,
+    MealType,
+)
 from checkpoint_platform.domain.events import CheckpointEvent
 from checkpoint_platform.domain.exceptions import DuplicateEventError, StaleVersionError
 from checkpoint_platform.infrastructure.persistence.models import (
@@ -38,7 +43,7 @@ def _wastage_event(
         status=CheckpointStatus.COMPLETED,
         value=Decimal(value),
         unit="KG",
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
     )
 
 
@@ -82,9 +87,7 @@ def test_stale_version_ignored(session: Session):
     assert float(state.value) == 15.0
 
     agg = session.execute(
-        select(DailyCounterAggregation).where(
-            DailyCounterAggregation.counter_id == "counter-450"
-        )
+        select(DailyCounterAggregation).where(DailyCounterAggregation.counter_id == "counter-450")
     ).scalar_one()
     assert float(agg.food_wastage_kg) == 15.0
 

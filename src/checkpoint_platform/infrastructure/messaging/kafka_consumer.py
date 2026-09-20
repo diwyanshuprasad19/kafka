@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from confluent_kafka import Consumer
 
@@ -6,12 +6,12 @@ from checkpoint_platform.config import get_settings
 
 
 def build_consumer(
-    group_id: Optional[str] = None,
-    topics: Optional[list[str]] = None,
+    group_id: str | None = None,
+    topics: list[str] | None = None,
     *,
-    throughput_mode: Optional[str] = None,
-    on_assign: Optional[Callable] = None,
-    on_revoke: Optional[Callable] = None,
+    throughput_mode: str | None = None,
+    on_assign: Callable | None = None,
+    on_revoke: Callable | None = None,
 ) -> Consumer:
     settings = get_settings()
     if throughput_mode:

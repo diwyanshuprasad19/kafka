@@ -28,11 +28,13 @@ def ops_status():
     try:
         session.execute(text("SELECT 1"))
         deps["postgres"] = True
-        agg_rows = session.execute(select(func.count()).select_from(DailyCounterAggregation)).scalar()
+        agg_rows = session.execute(
+            select(func.count()).select_from(DailyCounterAggregation)
+        ).scalar()
         dlq_pending = session.execute(
-            select(func.count()).select_from(DlqRecord).where(
-                DlqRecord.reingest_status == "pending"
-            )
+            select(func.count())
+            .select_from(DlqRecord)
+            .where(DlqRecord.reingest_status == "pending")
         ).scalar()
         data = {
             "aggregation_rows": int(agg_rows or 0),

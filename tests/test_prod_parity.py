@@ -14,10 +14,7 @@ import pytest
 
 from checkpoint_platform.config.settings import Settings, normalize_app_env
 
-
-# --------------------------------------------------------------------------- #
 # Environment resolution
-# --------------------------------------------------------------------------- #
 
 
 @pytest.mark.parametrize(
@@ -52,9 +49,7 @@ def test_settings_are_env_driven(monkeypatch):
     assert settings.checkpoint_partitions == 24
 
 
-# --------------------------------------------------------------------------- #
 # Kafka client configuration
-# --------------------------------------------------------------------------- #
 
 
 def test_plaintext_carries_no_credentials():
@@ -101,9 +96,7 @@ def test_custom_ca_is_forwarded():
     assert settings.kafka_client_config()["ssl.ca.location"] == "/etc/ssl/private-ca.pem"
 
 
-# --------------------------------------------------------------------------- #
 # Topic durability
-# --------------------------------------------------------------------------- #
 
 
 def _captured_topic_config(replication_factor: int) -> dict[str, dict]:
@@ -148,9 +141,7 @@ def test_dlq_is_retained_longer_than_the_live_stream():
     assert retention_days >= 7, "a DLQ that expires before anyone looks is useless"
 
 
-# --------------------------------------------------------------------------- #
 # Preflight gate
-# --------------------------------------------------------------------------- #
 
 
 def _preflight():

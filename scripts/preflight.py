@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -47,9 +47,7 @@ class Check:
         return self.status == FAIL
 
 
-# --------------------------------------------------------------------------- #
 # Configuration
-# --------------------------------------------------------------------------- #
 
 
 def check_config(settings) -> list[Check]:
@@ -115,9 +113,7 @@ def check_config(settings) -> list[Check]:
                 )
             )
         else:
-            results.append(
-                Check("config.kafka_auth", PASS, f"Kafka security protocol {protocol}")
-            )
+            results.append(Check("config.kafka_auth", PASS, f"Kafka security protocol {protocol}"))
 
         if settings.kafka_replication_factor < 3:
             results.append(
@@ -185,9 +181,7 @@ def check_config(settings) -> list[Check]:
     return results
 
 
-# --------------------------------------------------------------------------- #
 # Dependencies
-# --------------------------------------------------------------------------- #
 
 
 def check_database(settings) -> list[Check]:
@@ -198,9 +192,7 @@ def check_database(settings) -> list[Check]:
         engine = create_engine(settings.database_url, pool_pre_ping=True)
         with engine.connect() as conn:
             version = conn.execute(text("SHOW server_version")).scalar_one()
-            applied = conn.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalars().all()
+            applied = conn.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
     except Exception as exc:  # noqa: BLE001
         return [
             Check(
@@ -296,9 +288,7 @@ def check_kafka(settings) -> list[Check]:
             )
         ]
 
-    results.append(
-        Check("kafka.connect", PASS, f"{len(cluster.brokers)} broker(s) reachable")
-    )
+    results.append(Check("kafka.connect", PASS, f"{len(cluster.brokers)} broker(s) reachable"))
 
     required = {
         settings.checkpoint_topic: settings.checkpoint_partitions,
@@ -338,12 +328,8 @@ def check_kafka(settings) -> list[Check]:
     # acks=all is only as durable as min.insync.replicas.
     if settings.kafka_replication_factor > 1:
         try:
-            resource = ConfigResource(
-                ConfigResource.Type.TOPIC, settings.checkpoint_topic
-            )
-            config = admin.describe_configs([resource], request_timeout=15)[
-                resource
-            ].result()
+            resource = ConfigResource(ConfigResource.Type.TOPIC, settings.checkpoint_topic)
+            config = admin.describe_configs([resource], request_timeout=15)[resource].result()
             min_isr = int(config["min.insync.replicas"].value)
             results.append(
                 Check(
@@ -383,8 +369,10 @@ def main() -> None:
 
     settings = get_settings()
 
-    print(f"Preflight — APP_ENV={settings.app_env} "
-          f"({'production' if settings.is_prod else 'local'} rules)\n")
+    print(
+        f"Preflight — APP_ENV={settings.app_env} "
+        f"({'production' if settings.is_prod else 'local'} rules)\n"
+    )
 
     results: list[Check] = []
     for name, fn in CHECKS.items():
@@ -394,9 +382,7 @@ def main() -> None:
         try:
             results.extend(fn(settings))
         except Exception as exc:  # noqa: BLE001
-            results.append(
-                Check(name, FAIL, f"check itself failed: {type(exc).__name__}: {exc}")
-            )
+            results.append(Check(name, FAIL, f"check itself failed: {type(exc).__name__}: {exc}"))
 
     width = max(len(r.name) for r in results)
     for r in results:

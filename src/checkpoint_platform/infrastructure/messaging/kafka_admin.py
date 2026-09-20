@@ -13,9 +13,7 @@ def create_topics(
     settings = get_settings()
     partitions = partitions or settings.checkpoint_partitions
     replication_factor = (
-        replication_factor
-        if replication_factor is not None
-        else settings.kafka_replication_factor
+        replication_factor if replication_factor is not None else settings.kafka_replication_factor
     )
     admin = AdminClient(settings.kafka_client_config())
 
@@ -71,7 +69,7 @@ def create_topics(
                 replication_factor=replication_factor,
                 min_insync_replicas=base_config.get("min.insync.replicas", "1"),
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if "already exists" in str(exc).lower() or "TopicExistsError" in type(exc).__name__:
                 logger.info("topic_exists", topic=topic_name)
             else:

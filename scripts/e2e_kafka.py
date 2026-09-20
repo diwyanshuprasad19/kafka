@@ -24,7 +24,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,10 +33,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 CATCH_UP_TIMEOUT = 90
 
-
-# --------------------------------------------------------------------------- #
 # Helpers
-# --------------------------------------------------------------------------- #
 
 
 @dataclass
@@ -86,7 +83,7 @@ def wastage_event(run: str, i: int, *, version: int = 1, value: float = 1.0, eve
         "status": "COMPLETED",
         "value": value,
         "unit": "KG",
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "occurred_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -108,7 +105,7 @@ def group_lag() -> int:
         total = 0
         for tp in probe.committed(partitions, timeout=10):
             _low, high = probe.get_watermark_offsets(tp, timeout=10, cached=False)
-            total += max(high - (tp.offset if tp.offset >= 0 else 0), 0)
+            total += max(high - (max(tp.offset, 0)), 0)
         return total
     finally:
         probe.close()
@@ -151,9 +148,9 @@ def checkpoint_count(run: str) -> int:
 
     with session_scope() as session:
         return session.execute(
-            select(func.count()).select_from(CheckpointState).where(
-                CheckpointState.checkpoint_id.like(f"cp-{run}-%")
-            )
+            select(func.count())
+            .select_from(CheckpointState)
+            .where(CheckpointState.checkpoint_id.like(f"cp-{run}-%"))
         ).scalar_one()
 
 
@@ -167,9 +164,7 @@ def dlq_count() -> int:
         return session.execute(select(func.count()).select_from(DlqRecord)).scalar_one()
 
 
-# --------------------------------------------------------------------------- #
 # Consumer group control
-# --------------------------------------------------------------------------- #
 
 
 class ConsumerGroup:
@@ -259,9 +254,7 @@ class ConsumerGroup:
         return owned
 
 
-# --------------------------------------------------------------------------- #
 # Scenarios
-# --------------------------------------------------------------------------- #
 
 
 def scenario_ordering(group: ConsumerGroup) -> Outcome:
@@ -282,7 +275,12 @@ def scenario_ordering(group: ConsumerGroup) -> Outcome:
     # Same event_id again: the duplicate must be ignored by the idempotency claim.
     _publish(producer, topic, correction["counter_id"], correction)
     # A stale replay of v1: must be rejected by the version guard.
-    _publish(producer, topic, first["counter_id"], wastage_event(run, 0, version=1, value=20.0))
+    _publish(
+        producer,
+        topic,
+        first["counter_id"],
+        wastage_event(run, 0, version=1, value=20.0),
+    )
     producer.flush(30)
 
     if not wait_for_catch_up():

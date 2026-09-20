@@ -7,7 +7,6 @@ from prometheus_client import (
     generate_latest,
 )
 
-# --- Core processing ---
 EVENTS_PROCESSED = Counter(
     "checkpoint_events_processed_total",
     "Checkpoint events processed by outcome",
@@ -126,7 +125,6 @@ HTTP_LATENCY = Histogram(
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
 )
 
-# --- Operational gauges for 50k/min prod scale ---
 EVENTS_PER_MINUTE = Gauge(
     "checkpoint_events_per_minute",
     "Rolling processed events per minute (approx)",
@@ -171,7 +169,9 @@ def metrics_payload() -> tuple[bytes, str]:
 
 
 def set_app_info(*, env: str, service: str, version: str = "0.1.0") -> None:
-    from checkpoint_platform.infrastructure.messaging.tuning import TARGET_EVENTS_PER_MINUTE as TARGET
+    from checkpoint_platform.infrastructure.messaging.tuning import (
+        TARGET_EVENTS_PER_MINUTE as TARGET,
+    )
 
     APP_INFO.info({"env": env, "service": service, "version": version})
     TARGET_EVENTS_PER_MINUTE.set(TARGET)

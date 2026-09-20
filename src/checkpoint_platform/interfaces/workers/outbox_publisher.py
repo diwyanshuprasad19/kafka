@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import signal
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from checkpoint_platform.config import get_settings
 from checkpoint_platform.config.container import get_cache, get_publisher, get_session
-from checkpoint_platform.infrastructure.observability.logging import get_logger, setup_logging
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
 from checkpoint_platform.infrastructure.observability.metrics import (
     OUTBOX_PENDING,
     OUTBOX_PUBLISHED,
@@ -37,7 +40,7 @@ BATCH_SIZE = 500
 IDLE_SLEEP_SECONDS = 0.2
 
 
-def _handle_signal(signum, frame) -> None:  # noqa: ARG001
+def _handle_signal(signum, frame) -> None:
     global _running
     _running = False
 
@@ -77,7 +80,7 @@ def run() -> None:
                 continue
 
             published_payloads = []
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for row in rows:
                 key = row.payload.get("counter_id", "outbox")
                 publisher.publish_aggregation(row.payload, key=key)

@@ -42,7 +42,9 @@ def session_scope() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     """Create tables (Alembic preferred in prod; useful for local/demo)."""
-    from checkpoint_platform.infrastructure.persistence import models as _models  # noqa: F401
+    from checkpoint_platform.infrastructure.persistence import (
+        models as _models,  # noqa: F401
+    )
     from checkpoint_platform.infrastructure.persistence.base import Base
 
     Base.metadata.create_all(bind=engine)

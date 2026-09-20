@@ -5,15 +5,16 @@ received quantity, pending checkpoints, and incident tracking (incidents are not
 "failed checkpoints" — they have their own open/closed lifecycle).
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0005_full_checkpoint_domain"
-down_revision: Union[str, None] = "0004_exactness_and_retention"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0004_exactness_and_retention"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 NEW_COLUMNS = (
     "pending_checkpoints",
@@ -30,9 +31,7 @@ def upgrade() -> None:
         )
     op.add_column(
         "daily_counter_aggregation",
-        sa.Column(
-            "food_received_kg", sa.Numeric(14, 3), nullable=False, server_default="0"
-        ),
+        sa.Column("food_received_kg", sa.Numeric(14, 3), nullable=False, server_default="0"),
     )
     # Redundant since 0004 added ix_dlq_status_created on (reingest_status,
     # created_at): a composite index already serves lookups on its leading column.

@@ -16,7 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -28,7 +28,9 @@ from checkpoint_platform.domain.enums import (
     MealType,
 )
 from checkpoint_platform.domain.events import CheckpointEvent
-from checkpoint_platform.infrastructure.messaging.kafka_producer import KafkaEventPublisher
+from checkpoint_platform.infrastructure.messaging.kafka_producer import (
+    KafkaEventPublisher,
+)
 from checkpoint_platform.infrastructure.observability.logging import setup_logging
 from checkpoint_platform.infrastructure.observability.metrics import PRODUCER_EVENTS
 
@@ -55,23 +57,43 @@ def _event(
         status=CheckpointStatus.COMPLETED,
         value=Decimal(value),
         unit="KG",
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
         retry_count=retry_count,
     )
 
 
 def scenario_idempotency(publisher: KafkaEventPublisher) -> None:
     print("\n=== scenario: idempotency + ordering (expect wastage=15) ===")
-    e1 = _event(counter_id="counter-fail-1", checkpoint_id="cp-fail-wastage", version=1, value="20")
-    e2 = _event(counter_id="counter-fail-1", checkpoint_id="cp-fail-wastage", version=2, value="15")
+    e1 = _event(
+        counter_id="counter-fail-1",
+        checkpoint_id="cp-fail-wastage",
+        version=1,
+        value="20",
+    )
+    e2 = _event(
+        counter_id="counter-fail-1",
+        checkpoint_id="cp-fail-wastage",
+        version=2,
+        value="15",
+    )
     e2_dup = e2.model_copy()
     e1_stale = _event(
-        counter_id="counter-fail-1", checkpoint_id="cp-fail-wastage", version=1, value="20"
+        counter_id="counter-fail-1",
+        checkpoint_id="cp-fail-wastage",
+        version=1,
+        value="20",
     )
-    for label, ev in [("v1_20", e1), ("v2_15", e2), ("dup_v2", e2_dup), ("stale_v1", e1_stale)]:
+    for label, ev in [
+        ("v1_20", e1),
+        ("v2_15", e2),
+        ("dup_v2", e2_dup),
+        ("stale_v1", e1_stale),
+    ]:
         publisher.publish_checkpoint(ev)
         PRODUCER_EVENTS.labels(source="failure_scenarios").inc()
-        print(f"  published {label} event_id={ev.event_id} v={ev.checkpoint_version} value={ev.value}")
+        print(
+            f"  published {label} event_id={ev.event_id} v={ev.checkpoint_version} value={ev.value}"
+        )
     publisher.flush()
     print("  → curl 'http://localhost:8080/aggregations/counter/counter-fail-1?meal_type=LUNCH'")
 

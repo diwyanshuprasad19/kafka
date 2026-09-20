@@ -7,10 +7,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-
-TEST_DB_URL = (
-    "postgresql+psycopg://checkpoint:checkpoint@localhost:5432/aggregation_test"
-)
+TEST_DB_URL = "postgresql+psycopg://checkpoint:checkpoint@localhost:5432/aggregation_test"
 
 
 def _ensure_test_db() -> None:
@@ -47,8 +44,8 @@ def _ensure_test_db() -> None:
 @pytest.fixture()
 def db_engine():
     pytest.importorskip("psycopg")
-    from checkpoint_platform.infrastructure.persistence.base import Base
     import checkpoint_platform.infrastructure.persistence.models  # noqa: F401
+    from checkpoint_platform.infrastructure.persistence.base import Base
 
     try:
         _ensure_test_db()

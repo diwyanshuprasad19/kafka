@@ -13,21 +13,26 @@ from __future__ import annotations
 import argparse
 import random
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 from checkpoint_platform.config import get_settings
-from checkpoint_platform.infrastructure.messaging.kafka_producer import CheckpointProducer
-from checkpoint_platform.infrastructure.observability.metrics import PRODUCER_EVENTS
-from checkpoint_platform.domain.events import CheckpointEvent
 from checkpoint_platform.domain.enums import (
     CheckpointStatus,
     CheckpointType,
     EventType,
     MealType,
 )
-from checkpoint_platform.infrastructure.observability.logging import get_logger, setup_logging
+from checkpoint_platform.domain.events import CheckpointEvent
+from checkpoint_platform.infrastructure.messaging.kafka_producer import (
+    CheckpointProducer,
+)
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
+from checkpoint_platform.infrastructure.observability.metrics import PRODUCER_EVENTS
 
 setup_logging()
 logger = get_logger(__name__)
@@ -59,7 +64,12 @@ def _random_event(
 
     if status is None:
         status = random.choices(
-            [CheckpointStatus.COMPLETED, CheckpointStatus.FAILED, CheckpointStatus.PASS, CheckpointStatus.FAIL],
+            [
+                CheckpointStatus.COMPLETED,
+                CheckpointStatus.FAILED,
+                CheckpointStatus.PASS,
+                CheckpointStatus.FAIL,
+            ],
             weights=[70, 5, 20, 5],
         )[0]
 
@@ -75,11 +85,15 @@ def _random_event(
             value = Decimal(str(round(random.uniform(2, 85), 1)))
         unit = "CELSIUS"
         if status not in (CheckpointStatus.PASS, CheckpointStatus.FAIL):
-            status = CheckpointStatus.PASS if float(value) >= 60 or float(value) <= 8 else CheckpointStatus.FAIL
+            status = (
+                CheckpointStatus.PASS
+                if float(value) >= 60 or float(value) <= 8
+                else CheckpointStatus.FAIL
+            )
     else:
         unit = None
 
-    occurred = datetime.now(timezone.utc) - timedelta(days=day_offset)
+    occurred = datetime.now(UTC) - timedelta(days=day_offset)
 
     return CheckpointEvent(
         event_id=event_id or uuid4(),
@@ -106,23 +120,23 @@ def run_demo_scenario(producer: CheckpointProducer) -> None:
     """
     counter = "counter-demo-1"
     cp_id = "cp-demo-wastage-lunch"
-    base = dict(
-        checkpoint_id=cp_id,
-        client_id="client-demo",
-        cafe_id="cafe-demo",
-        counter_id=counter,
-        meal_type=MealType.LUNCH,
-        checkpoint_type=CheckpointType.FOOD_WASTAGE,
-        status=CheckpointStatus.COMPLETED,
-        unit="KG",
-        occurred_at=datetime.now(timezone.utc),
-    )
+    base = {
+        "checkpoint_id": cp_id,
+        "client_id": "client-demo",
+        "cafe_id": "cafe-demo",
+        "counter_id": counter,
+        "meal_type": MealType.LUNCH,
+        "checkpoint_type": CheckpointType.FOOD_WASTAGE,
+        "status": CheckpointStatus.COMPLETED,
+        "unit": "KG",
+        "occurred_at": datetime.now(UTC),
+    }
 
     e1 = CheckpointEvent(
         event_id=uuid4(),
         event_type=EventType.COMPLETED,
         checkpoint_version=1,
-        value=Decimal("20"),
+        value=Decimal(20),
         **base,
     )
     e2_id = uuid4()
@@ -130,7 +144,7 @@ def run_demo_scenario(producer: CheckpointProducer) -> None:
         event_id=e2_id,
         event_type=EventType.UPDATED,
         checkpoint_version=2,
-        value=Decimal("15"),
+        value=Decimal(15),
         **base,
     )
     # Duplicate of e2
@@ -140,7 +154,7 @@ def run_demo_scenario(producer: CheckpointProducer) -> None:
         event_id=uuid4(),
         event_type=EventType.UPDATED,
         checkpoint_version=1,
-        value=Decimal("20"),
+        value=Decimal(20),
         **base,
     )
 
@@ -152,7 +166,9 @@ def run_demo_scenario(producer: CheckpointProducer) -> None:
     ]:
         producer.publish_checkpoint(ev)
         PRODUCER_EVENTS.labels(source="generator").inc()
-        print(f"published {label}: event_id={ev.event_id} version={ev.checkpoint_version} value={ev.value}")
+        print(
+            f"published {label}: event_id={ev.event_id} version={ev.checkpoint_version} value={ev.value}"
+        )
 
     producer.flush()
     print("Demo scenario published. Expected final food_wastage_kg = 15")

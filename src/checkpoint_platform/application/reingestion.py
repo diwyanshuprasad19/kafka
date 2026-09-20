@@ -58,7 +58,7 @@ class ReIngestionService:
                 )
                 results.append(result)
                 REINGEST_EVENTS.labels(source="dlq", outcome="success").inc()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 REINGEST_EVENTS.labels(source="dlq", outcome="failure").inc()
                 REINGEST_FAILURES.inc()
                 logger.exception(

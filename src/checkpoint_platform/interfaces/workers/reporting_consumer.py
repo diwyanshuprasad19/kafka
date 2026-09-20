@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import signal
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy.dialects.postgresql import insert
 
@@ -11,8 +11,14 @@ from checkpoint_platform.config import get_settings
 from checkpoint_platform.config.container import get_session
 from checkpoint_platform.infrastructure.messaging.kafka_consumer import build_consumer
 from checkpoint_platform.infrastructure.messaging.serializer import deserialize
-from checkpoint_platform.infrastructure.observability.logging import get_logger, setup_logging
-from checkpoint_platform.infrastructure.observability.metrics import EVENTS_PROCESSED, start_metrics_server
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
+from checkpoint_platform.infrastructure.observability.metrics import (
+    EVENTS_PROCESSED,
+    start_metrics_server,
+)
 from checkpoint_platform.infrastructure.persistence.models import ReportingSnapshot
 from checkpoint_platform.infrastructure.persistence.session import init_db
 
@@ -22,7 +28,7 @@ logger = get_logger(__name__)
 _running = True
 
 
-def _handle_signal(signum, frame) -> None:  # noqa: ARG001
+def _handle_signal(signum, frame) -> None:
     global _running
     _running = False
 
@@ -61,7 +67,7 @@ def run() -> None:
                     meal_type=payload["meal_type"],
                     aggregation_date=agg_date,
                     payload=payload,
-                    received_at=datetime.now(timezone.utc),
+                    received_at=datetime.now(UTC),
                 )
                 stmt = stmt.on_conflict_do_update(
                     constraint="uq_reporting_counter_meal",

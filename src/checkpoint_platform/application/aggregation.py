@@ -26,7 +26,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -62,7 +61,7 @@ from checkpoint_platform.infrastructure.persistence.repositories import (
 
 logger = get_logger(__name__)
 
-ZERO = Decimal("0")
+ZERO = Decimal(0)
 
 _QUANTITY_COLUMN_BY_TYPE = {
     CheckpointType.FOOD_RECEIVED: "food_received_kg",
@@ -153,7 +152,7 @@ class PriorState:
     contribution: Contribution
 
     @classmethod
-    def from_row(cls, row: CheckpointState) -> "PriorState":
+    def from_row(cls, row: CheckpointState) -> PriorState:
         return cls(
             key=AggregationKey(
                 aggregation_date=row.aggregation_date,
@@ -221,9 +220,7 @@ class AggregationService:
             self.checkpoints.append_history(
                 event, aggregation_date=agg_date, value_kg=value_kg, outcome="stale"
             )
-            raise StaleVersionError(
-                f"incoming={event.checkpoint_version} current={prior.version}"
-            )
+            raise StaleVersionError(f"incoming={event.checkpoint_version} current={prior.version}")
 
         applied, totals = self._apply_contributions(event, new_key, value_kg, prior)
         self.checkpoints.append_history(
@@ -247,7 +244,7 @@ class AggregationService:
         event: CheckpointEvent,
         key: AggregationKey,
         value_kg: Decimal,
-    ) -> Optional[PriorState]:
+    ) -> PriorState | None:
         """Write checkpoint_state and return the contribution it replaced.
 
         Returns ``None`` when this event created the checkpoint. Raises
@@ -274,17 +271,15 @@ class AggregationService:
             self.checkpoints.update_to(event, key, value_kg)
             return prior
 
-        raise ConcurrentUpdateError(
-            f"could not claim checkpoint_state for {event.checkpoint_id}"
-        )
+        raise ConcurrentUpdateError(f"could not claim checkpoint_state for {event.checkpoint_id}")
 
     def _apply_contributions(
         self,
         event: CheckpointEvent,
         new_key: AggregationKey,
         value_kg: Decimal,
-        prior: Optional[PriorState],
-    ) -> tuple[dict, Optional[AggregateTotals]]:
+        prior: PriorState | None,
+    ) -> tuple[dict, AggregateTotals | None]:
         application = Contribution(
             checkpoint_type=event.checkpoint_type,
             status=event.status,
@@ -340,7 +335,7 @@ class AggregationService:
     def _enqueue_outbox(
         self,
         event: CheckpointEvent,
-        agg: Optional[AggregateTotals],
+        agg: AggregateTotals | None,
     ) -> None:
         if agg is None:
             return

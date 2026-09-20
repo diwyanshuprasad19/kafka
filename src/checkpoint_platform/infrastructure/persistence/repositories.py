@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -21,7 +20,6 @@ from checkpoint_platform.infrastructure.persistence.models import (
     OutboxEvent,
     ProcessedEvent,
 )
-
 
 # Single source of truth for the accumulated aggregate columns. The delta dict, the
 # UPSERT arithmetic and the API response are all derived from these, so adding a
@@ -74,13 +72,13 @@ class AggregateTotals:
     food_wastage_kg: Decimal
 
     @classmethod
-    def from_row(cls, row) -> "AggregateTotals":
+    def from_row(cls, row) -> AggregateTotals:
         return cls(
             aggregation_date=row.aggregation_date,
             total_checkpoints=row.total_checkpoints or 0,
             completed_checkpoints=row.completed_checkpoints or 0,
-            food_prepared_kg=row.food_prepared_kg or Decimal("0"),
-            food_wastage_kg=row.food_wastage_kg or Decimal("0"),
+            food_prepared_kg=row.food_prepared_kg or Decimal(0),
+            food_wastage_kg=row.food_wastage_kg or Decimal(0),
         )
 
 
@@ -88,10 +86,10 @@ class CheckpointRepo:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def get(self, checkpoint_id: str) -> Optional[CheckpointState]:
+    def get(self, checkpoint_id: str) -> CheckpointState | None:
         return self._select_one(checkpoint_id, for_update=False)
 
-    def get_for_update(self, checkpoint_id: str) -> Optional[CheckpointState]:
+    def get_for_update(self, checkpoint_id: str) -> CheckpointState | None:
         """Read the row holding its lock, bypassing any stale identity-map copy.
 
         ``populate_existing`` matters when a consumer processes a batch of events in
@@ -101,9 +99,7 @@ class CheckpointRepo:
         return self._select_one(checkpoint_id, for_update=True)
 
     def _select_one(self, checkpoint_id: str, *, for_update: bool):
-        stmt = select(CheckpointState).where(
-            CheckpointState.checkpoint_id == checkpoint_id
-        )
+        stmt = select(CheckpointState).where(CheckpointState.checkpoint_id == checkpoint_id)
         if for_update:
             stmt = stmt.with_for_update()
         stmt = stmt.execution_options(populate_existing=True)
@@ -128,7 +124,7 @@ class CheckpointRepo:
             "value_kg": value_kg,
             "unit": event.unit,
             "aggregation_date": key.aggregation_date,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }
 
     def insert_if_absent(
@@ -250,11 +246,7 @@ class HistoryRepo:
             stmt = stmt.where(CheckpointHistory.meal_type == meal_type)
         if checkpoint_type:
             stmt = stmt.where(CheckpointHistory.checkpoint_type == checkpoint_type)
-        stmt = (
-            stmt.order_by(CheckpointHistory.occurred_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = stmt.order_by(CheckpointHistory.occurred_at.desc()).offset(offset).limit(limit)
         return list(self.session.execute(stmt).scalars().all())
 
     def list_for_cafe(
@@ -271,11 +263,7 @@ class HistoryRepo:
             stmt = stmt.where(CheckpointHistory.occurred_at >= from_ts)
         if to_ts:
             stmt = stmt.where(CheckpointHistory.occurred_at <= to_ts)
-        stmt = (
-            stmt.order_by(CheckpointHistory.occurred_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = stmt.order_by(CheckpointHistory.occurred_at.desc()).offset(offset).limit(limit)
         return list(self.session.execute(stmt).scalars().all())
 
     def prune_older_than(self, cutoff: datetime, *, limit: int = 50_000) -> int:
@@ -286,9 +274,7 @@ class HistoryRepo:
             .scalar_subquery()
         )
         result = self.session.execute(
-            delete(CheckpointHistory.__table__).where(
-                CheckpointHistory.__table__.c.id.in_(ids)
-            )
+            delete(CheckpointHistory.__table__).where(CheckpointHistory.__table__.c.id.in_(ids))
         )
         return result.rowcount or 0
 
@@ -297,7 +283,7 @@ class AggregationRepo:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def get(self, key: AggregationKey) -> Optional[DailyCounterAggregation]:
+    def get(self, key: AggregationKey) -> DailyCounterAggregation | None:
         stmt = (
             select(DailyCounterAggregation)
             .where(
@@ -311,7 +297,7 @@ class AggregationRepo:
         )
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def totals_for(self, key: AggregationKey) -> Optional[AggregateTotals]:
+    def totals_for(self, key: AggregationKey) -> AggregateTotals | None:
         row = self.get(key)
         if row is None:
             return None
@@ -324,7 +310,7 @@ class AggregationRepo:
         client_id: str,
         cafe_id: str,
         deltas: dict,
-    ) -> Optional[DailyCounterAggregation]:
+    ) -> DailyCounterAggregation | None:
         """Add deltas to one aggregate row and return the result.
 
         Returning the updated row saves a follow-up SELECT for the outbox payload —
@@ -337,7 +323,7 @@ class AggregationRepo:
             cafe_id=cafe_id,
             counter_id=key.counter_id,
             meal_type=key.meal_type,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
             **{name: deltas[name] for name in DELTA_COLUMNS},
         )
         stmt = stmt.on_conflict_do_update(
@@ -345,11 +331,8 @@ class AggregationRepo:
             set_={
                 # Every metric is accumulated by the database itself, so concurrent
                 # consumers can never lose an update to a read-modify-write race.
-                **{
-                    name: table.c[name] + stmt.excluded[name]
-                    for name in DELTA_COLUMNS
-                },
-                "updated_at": datetime.now(timezone.utc),
+                **{name: table.c[name] + stmt.excluded[name] for name in DELTA_COLUMNS},
+                "updated_at": datetime.now(UTC),
                 "client_id": stmt.excluded.client_id,
                 "cafe_id": stmt.excluded.cafe_id,
             },
@@ -401,9 +384,7 @@ class ProcessedEventRepo:
     def mark(self, event_id: UUID, checkpoint_id: str) -> None:
         try:
             with self.session.begin_nested():
-                self.session.add(
-                    ProcessedEvent(event_id=event_id, checkpoint_id=checkpoint_id)
-                )
+                self.session.add(ProcessedEvent(event_id=event_id, checkpoint_id=checkpoint_id))
                 self.session.flush()
         except IntegrityError:
             raise DuplicateEventError(str(event_id)) from None
@@ -428,9 +409,7 @@ class ProcessedEventRepo:
             .scalar_subquery()
         )
         result = self.session.execute(
-            delete(ProcessedEvent.__table__).where(
-                ProcessedEvent.__table__.c.event_id.in_(ids)
-            )
+            delete(ProcessedEvent.__table__).where(ProcessedEvent.__table__.c.event_id.in_(ids))
         )
         return result.rowcount or 0
 
@@ -440,9 +419,7 @@ class OutboxRepo:
         self.session = session
 
     def enqueue(self, event_type: str, payload: dict) -> None:
-        self.session.add(
-            OutboxEvent(event_type=event_type, payload=payload, published=False)
-        )
+        self.session.add(OutboxEvent(event_type=event_type, payload=payload, published=False))
 
     def fetch_unpublished(self, limit: int = 50) -> list[OutboxEvent]:
         stmt = (
@@ -466,9 +443,7 @@ class OutboxRepo:
             or 0
         )
 
-    def prune_published_older_than(
-        self, cutoff: datetime, *, limit: int = 50_000
-    ) -> int:
+    def prune_published_older_than(self, cutoff: datetime, *, limit: int = 50_000) -> int:
         ids = (
             select(OutboxEvent.id)
             .where(OutboxEvent.published.is_(True), OutboxEvent.published_at < cutoff)
@@ -521,11 +496,7 @@ class DlqRepo:
         if not dlq_ids:
             return []
         return list(
-            self.session.execute(
-                select(DlqRecord).where(DlqRecord.id.in_(dlq_ids))
-            )
-            .scalars()
-            .all()
+            self.session.execute(select(DlqRecord).where(DlqRecord.id.in_(dlq_ids))).scalars().all()
         )
 
     def mark_reingested(
@@ -535,17 +506,15 @@ class DlqRepo:
         event_id: str,
         correlation_id: str,
     ) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         row.reingest_status = "reingested"
-        row.reingested_at = datetime.now(timezone.utc)
+        row.reingested_at = datetime.now(UTC)
         row.reingest_event_id = event_id
         row.reingest_correlation_id = correlation_id
         self.session.add(row)
 
-    def prune_reingested_older_than(
-        self, cutoff: datetime, *, limit: int = 10_000
-    ) -> int:
+    def prune_reingested_older_than(self, cutoff: datetime, *, limit: int = 10_000) -> int:
         """Only completed DLQ records expire; pending poison stays for triage."""
         ids = (
             select(DlqRecord.id)

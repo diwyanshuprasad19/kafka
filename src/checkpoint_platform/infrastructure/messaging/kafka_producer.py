@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from confluent_kafka import Producer
 
@@ -23,15 +23,17 @@ class KafkaEventPublisher:
 
     def __init__(
         self,
-        producer: Optional[Producer] = None,
+        producer: Producer | None = None,
         *,
-        throughput_mode: Optional[str] = None,
+        throughput_mode: str | None = None,
     ) -> None:
         settings = get_settings()
         mode = throughput_mode or settings.kafka_throughput_mode
         config = settings.kafka_producer_config()
         if throughput_mode:
-            from checkpoint_platform.infrastructure.messaging.tuning import producer_config
+            from checkpoint_platform.infrastructure.messaging.tuning import (
+                producer_config,
+            )
 
             config = producer_config(settings.kafka_client_config(), throughput_mode=mode)
         self._producer = producer or Producer(config)
@@ -55,7 +57,7 @@ class KafkaEventPublisher:
         topic: str,
         key: str,
         value: dict | object,
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
     ) -> None:
         payload = serialize(value)
         while True:

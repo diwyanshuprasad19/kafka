@@ -6,15 +6,16 @@ concurrent consumers on a handful of hot rows. A worker restates them from the
 counter grain instead.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0007_daily_rollups"
-down_revision: Union[str, None] = "0006_not_null_counters"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0006_not_null_counters"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 COUNT_COLUMNS = (
     "counters",
@@ -39,8 +40,7 @@ QUANTITY_COLUMNS = (
 
 def _metric_columns() -> list[sa.Column]:
     columns = [
-        sa.Column(name, sa.Integer(), nullable=False, server_default="0")
-        for name in COUNT_COLUMNS
+        sa.Column(name, sa.Integer(), nullable=False, server_default="0") for name in COUNT_COLUMNS
     ]
     columns += [
         sa.Column(name, sa.Numeric(16, 3), nullable=False, server_default="0")
@@ -66,9 +66,7 @@ def upgrade() -> None:
         sa.Column("cafe_id", sa.String(64), nullable=False),
         sa.Column("meal_type", sa.String(32), nullable=False),
         *_metric_columns(),
-        sa.UniqueConstraint(
-            "aggregation_date", "cafe_id", "meal_type", name="uq_cafe_daily_meal"
-        ),
+        sa.UniqueConstraint("aggregation_date", "cafe_id", "meal_type", name="uq_cafe_daily_meal"),
     )
     op.create_index(
         "ix_cafe_rollup_client_date",
@@ -102,9 +100,7 @@ def upgrade() -> None:
     )
 
     # The rollup worker scans counter rows by updated_at every pass.
-    op.create_index(
-        "ix_agg_updated_at", "daily_counter_aggregation", ["updated_at"]
-    )
+    op.create_index("ix_agg_updated_at", "daily_counter_aggregation", ["updated_at"])
 
 
 def downgrade() -> None:

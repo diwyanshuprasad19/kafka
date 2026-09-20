@@ -12,7 +12,9 @@ from checkpoint_platform.application.event_processing import EventProcessor
 from checkpoint_platform.application.ports import AggregateCachePort, EventPublisher
 from checkpoint_platform.application.query_aggregates import AggregateQueryService
 from checkpoint_platform.infrastructure.cache.redis_cache import RedisAggregateCache
-from checkpoint_platform.infrastructure.messaging.kafka_producer import KafkaEventPublisher
+from checkpoint_platform.infrastructure.messaging.kafka_producer import (
+    KafkaEventPublisher,
+)
 from checkpoint_platform.infrastructure.persistence.session import SessionLocal
 
 
@@ -34,7 +36,9 @@ def get_aggregation_service(session: Session) -> AggregationService:
     return AggregationService(session)
 
 
-def get_publish_service(publisher: EventPublisher | None = None) -> CheckpointPublishService:
+def get_publish_service(
+    publisher: EventPublisher | None = None,
+) -> CheckpointPublishService:
     return CheckpointPublishService(publisher or get_publisher())
 
 
@@ -51,7 +55,9 @@ def get_event_processor(
     )
 
 
-def get_query_service(session: Session, cache: AggregateCachePort | None = None) -> AggregateQueryService:
+def get_query_service(
+    session: Session, cache: AggregateCachePort | None = None
+) -> AggregateQueryService:
     return AggregateQueryService(session=session, cache=cache or get_cache())
 
 

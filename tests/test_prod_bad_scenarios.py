@@ -8,11 +8,11 @@ unit-level checks always run (no Docker required).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from uuid import uuid4
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -39,10 +39,7 @@ from checkpoint_platform.domain.exceptions import (
     retry_delay_seconds,
 )
 
-
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 class FakePublisher:
@@ -89,7 +86,7 @@ def _wastage(
         status=CheckpointStatus.COMPLETED,
         value=Decimal(value),
         unit="KG",
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
     )
 
 
@@ -112,7 +109,7 @@ def _hygiene(
         meal_type=MealType.LUNCH,
         checkpoint_type=CheckpointType.STAFF_HYGIENE,
         status=status,
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
     )
 
 
@@ -125,7 +122,9 @@ def db_session(session):
 def _read_agg(session, counter_id: str):
     from sqlalchemy import select
 
-    from checkpoint_platform.infrastructure.persistence.models import DailyCounterAggregation
+    from checkpoint_platform.infrastructure.persistence.models import (
+        DailyCounterAggregation,
+    )
 
     return session.execute(
         select(DailyCounterAggregation).where(
@@ -135,9 +134,7 @@ def _read_agg(session, counter_id: str):
     ).scalar_one()
 
 
-# ---------------------------------------------------------------------------
 # Catalog integrity
-# ---------------------------------------------------------------------------
 
 
 def test_s00_catalog_has_at_least_15():
@@ -146,9 +143,7 @@ def test_s00_catalog_has_at_least_15():
     assert len(set(scenario_ids())) == len(PROD_BAD_SCENARIOS)
 
 
-# ---------------------------------------------------------------------------
 # Always-on unit scenarios (no Postgres)
-# ---------------------------------------------------------------------------
 
 
 def test_s06_malformed_json_to_dlq():
@@ -274,9 +269,9 @@ def test_s11_empty_counter_id():
             meal_type=MealType.LUNCH,
             checkpoint_type=CheckpointType.FOOD_WASTAGE,
             status=CheckpointStatus.COMPLETED,
-            value=Decimal("1"),
+            value=Decimal(1),
             unit="KG",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
 
 
@@ -302,9 +297,7 @@ def test_s18_is_transient_classification_matrix():
     assert is_transient_error(StaleVersionError("x")) is False
 
 
-# ---------------------------------------------------------------------------
 # DB-backed scenarios
-# ---------------------------------------------------------------------------
 
 
 def test_s01_duplicate_event_id(db_session):
@@ -409,7 +402,7 @@ def test_s12_status_flip_completed_to_failed(db_session):
             meal_type=MealType.LUNCH,
             checkpoint_type=CheckpointType.MEAL_READINESS,
             status=CheckpointStatus.COMPLETED,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
     )
     svc.process(
@@ -424,7 +417,7 @@ def test_s12_status_flip_completed_to_failed(db_session):
             meal_type=MealType.LUNCH,
             checkpoint_type=CheckpointType.MEAL_READINESS,
             status=CheckpointStatus.FAILED,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
     )
     db_session.commit()
@@ -470,7 +463,7 @@ def test_s16_prepared_consumed_wastage(db_session):
             status=CheckpointStatus.COMPLETED,
             value=Decimal(val),
             unit="KG",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
 
     svc = AggregationService(db_session)

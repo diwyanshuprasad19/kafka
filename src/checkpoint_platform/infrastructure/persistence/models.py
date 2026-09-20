@@ -1,6 +1,5 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import (
@@ -17,7 +16,8 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from checkpoint_platform.infrastructure.persistence.base import Base
@@ -31,17 +31,17 @@ class CheckpointState(Base):
     client_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     cafe_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     counter_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    meal_type: Mapped[Optional[str]] = mapped_column(String(32))
+    meal_type: Mapped[str | None] = mapped_column(String(32))
     checkpoint_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    value: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 3))
-    unit: Mapped[Optional[str]] = mapped_column(String(16))
+    value: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    unit: Mapped[str | None] = mapped_column(String(16))
     # Normalized to kilograms once, on write, so reversing a checkpoint's previous
     # contribution never depends on re-interpreting the reported unit.
-    value_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 3))
+    value_kg: Mapped[Decimal | None] = mapped_column(Numeric(16, 3))
     # Business day this checkpoint currently counts towards; needed to reverse the
     # right aggregate row when a correction moves the checkpoint to another day.
-    aggregation_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    aggregation_date: Mapped[date | None] = mapped_column(Date, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -70,21 +70,19 @@ class CheckpointHistory(Base):
     client_id: Mapped[str] = mapped_column(String(64), nullable=False)
     cafe_id: Mapped[str] = mapped_column(String(64), nullable=False)
     counter_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    meal_type: Mapped[Optional[str]] = mapped_column(String(32))
+    meal_type: Mapped[str | None] = mapped_column(String(32))
     checkpoint_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    value: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 3))
-    value_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(16, 3))
-    unit: Mapped[Optional[str]] = mapped_column(String(16))
+    value: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    value_kg: Mapped[Decimal | None] = mapped_column(Numeric(16, 3))
+    unit: Mapped[str | None] = mapped_column(String(16))
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    correlation_id: Mapped[Optional[str]] = mapped_column(String(64))
+    correlation_id: Mapped[str | None] = mapped_column(String(64))
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    aggregation_date: Mapped[Optional[date]] = mapped_column(Date)
+    aggregation_date: Mapped[date | None] = mapped_column(Date)
     # applied | stale — a rejected correction is still recorded so operators can
     # answer "why didn't my update show up?" without reading consumer logs.
-    outcome: Mapped[str] = mapped_column(
-        String(16), nullable=False, server_default="applied"
-    )
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False, server_default="applied")
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -105,7 +103,7 @@ class ProcessedEvent(Base):
         server_default=func.now(),
         nullable=False,
     )
-    checkpoint_id: Mapped[Optional[str]] = mapped_column(String(128))
+    checkpoint_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class DailyCounterAggregation(Base):
@@ -131,50 +129,24 @@ class DailyCounterAggregation(Base):
     meal_type: Mapped[str] = mapped_column(String(32), nullable=False)
 
     total_checkpoints: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    completed_checkpoints: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
-    failed_checkpoints: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
-    pending_checkpoints: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
+    completed_checkpoints: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    failed_checkpoints: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    pending_checkpoints: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
-    food_received_kg: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), default=0, server_default="0"
-    )
-    food_prepared_kg: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), default=0, server_default="0"
-    )
-    food_consumed_kg: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), default=0, server_default="0"
-    )
-    food_wastage_kg: Mapped[Decimal] = mapped_column(
-        Numeric(14, 3), default=0, server_default="0"
-    )
+    food_received_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=0, server_default="0")
+    food_prepared_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=0, server_default="0")
+    food_consumed_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=0, server_default="0")
+    food_wastage_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=0, server_default="0")
 
-    hygiene_pass_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
-    hygiene_fail_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
-    temperature_pass_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
-    temperature_fail_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
+    hygiene_pass_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    hygiene_fail_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    temperature_pass_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    temperature_fail_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     # Incidents are counted separately from compliance; open_incidents falls back to
     # zero as corrective actions close them, via the same reverse-then-apply rule.
-    incident_count: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
-    open_incidents: Mapped[int] = mapped_column(
-        Integer, default=0, server_default="0"
-    )
+    incident_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    open_incidents: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -194,18 +166,10 @@ class _RollupColumns:
 
     counters: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
-    total_checkpoints: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    completed_checkpoints: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    failed_checkpoints: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    pending_checkpoints: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
+    total_checkpoints: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    completed_checkpoints: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    failed_checkpoints: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    pending_checkpoints: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     food_received_kg: Mapped[Decimal] = mapped_column(
         Numeric(16, 3), nullable=False, server_default="0"
@@ -220,24 +184,12 @@ class _RollupColumns:
         Numeric(16, 3), nullable=False, server_default="0"
     )
 
-    hygiene_pass_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    hygiene_fail_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    temperature_pass_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    temperature_fail_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    incident_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
-    open_incidents: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
+    hygiene_pass_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    hygiene_fail_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    temperature_pass_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    temperature_fail_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    incident_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    open_incidents: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     refreshed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -255,9 +207,7 @@ class CafeDailyAggregation(Base, _RollupColumns):
 
     __tablename__ = "cafe_daily_aggregation"
     __table_args__ = (
-        UniqueConstraint(
-            "aggregation_date", "cafe_id", "meal_type", name="uq_cafe_daily_meal"
-        ),
+        UniqueConstraint("aggregation_date", "cafe_id", "meal_type", name="uq_cafe_daily_meal"),
         Index("ix_cafe_rollup_client_date", "client_id", "aggregation_date"),
     )
 
@@ -273,9 +223,7 @@ class ClientDailyAggregation(Base, _RollupColumns):
 
     __tablename__ = "client_daily_aggregation"
     __table_args__ = (
-        UniqueConstraint(
-            "aggregation_date", "client_id", "meal_type", name="uq_client_daily_meal"
-        ),
+        UniqueConstraint("aggregation_date", "client_id", "meal_type", name="uq_client_daily_meal"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -322,7 +270,7 @@ class OutboxEvent(Base):
         server_default=func.now(),
         nullable=False,
     )
-    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ReportingSnapshot(Base):
@@ -354,9 +302,7 @@ class ReportingSnapshot(Base):
 
 class DlqRecord(Base):
     __tablename__ = "dlq_records"
-    __table_args__ = (
-        Index("ix_dlq_status_created", "reingest_status", "created_at"),
-    )
+    __table_args__ = (Index("ix_dlq_status_created", "reingest_status", "created_at"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     original_topic: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -374,6 +320,6 @@ class DlqRecord(Base):
     reingest_status: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default="pending"
     )  # pending | reingested | skipped
-    reingested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    reingest_event_id: Mapped[Optional[str]] = mapped_column(String(64))
-    reingest_correlation_id: Mapped[Optional[str]] = mapped_column(String(64))
+    reingested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reingest_event_id: Mapped[str | None] = mapped_column(String(64))
+    reingest_correlation_id: Mapped[str | None] = mapped_column(String(64))

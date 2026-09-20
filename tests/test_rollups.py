@@ -7,8 +7,9 @@ and that a correction at the counter grain propagates upward.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
@@ -26,7 +27,6 @@ from checkpoint_platform.infrastructure.persistence.models import (
     ClientDailyAggregation,
 )
 from checkpoint_platform.infrastructure.persistence.rollups import RollupRepo
-from uuid import uuid4
 
 
 def _wastage(session, counter: str, cafe: str, kg: str, *, version: int = 1) -> None:
@@ -43,7 +43,7 @@ def _wastage(session, counter: str, cafe: str, kg: str, *, version: int = 1) -> 
         status=CheckpointStatus.COMPLETED,
         value=Decimal(kg),
         unit="KG",
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
     )
     AggregationService(session).process(event)
     return event
@@ -78,7 +78,7 @@ def seeded(session):
 
 
 def test_cafe_rollup_sums_its_counters(session, seeded):
-    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=timezone.utc))
+    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=UTC))
 
     cafe_r1 = _cafe(session, "cafe-r1", seeded)
     assert cafe_r1.counters == 2
@@ -90,7 +90,7 @@ def test_cafe_rollup_sums_its_counters(session, seeded):
 
 
 def test_client_rollup_sums_every_cafe(session, seeded):
-    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=timezone.utc))
+    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=UTC))
 
     client = _client(session, "client-roll", seeded)
     assert client.cafes == 2
@@ -100,7 +100,7 @@ def test_client_rollup_sums_every_cafe(session, seeded):
 
 def test_repeated_refresh_does_not_double_count(session, seeded):
     """The rollup restates, so running it repeatedly is idempotent."""
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
     repo = RollupRepo(session)
     for _ in range(3):
         repo.refresh(since=epoch)
@@ -110,7 +110,7 @@ def test_repeated_refresh_does_not_double_count(session, seeded):
 
 
 def test_correction_propagates_to_both_levels(session, seeded):
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
     repo = RollupRepo(session)
     repo.refresh(since=epoch)
 
@@ -130,9 +130,7 @@ def _newest_counter_change(session) -> datetime:
         DailyCounterAggregation,
     )
 
-    return session.execute(
-        select(func.max(DailyCounterAggregation.updated_at))
-    ).scalar_one()
+    return session.execute(select(func.max(DailyCounterAggregation.updated_at))).scalar_one()
 
 
 def test_watermark_advances_and_stops_when_nothing_changed(session, seeded):
@@ -153,7 +151,7 @@ def test_watermark_is_rewound_so_a_late_commit_is_not_skipped(session, seeded):
 
 
 def test_rollup_only_restates_changed_keys(session, seeded):
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
     repo = RollupRepo(session)
     repo.refresh(since=epoch)
 
@@ -192,7 +190,7 @@ def test_api_falls_back_when_rollup_is_empty(session, seeded):
     assert payload["source"] == "counter_scan"
     assert payload["food_wastage_kg"] == 25.0
 
-    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=timezone.utc))
+    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=UTC))
     session.flush()
     payload = service.get_cafe("cafe-r1", str(seeded))
     assert payload["source"] == "rollup"
@@ -218,7 +216,7 @@ def test_rollup_and_live_scan_agree(session, seeded):
 
     service = AggregateQueryService(session, _NoCache())
     live = service._cafe_from_counters("cafe-r1", str(seeded))
-    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=timezone.utc))
+    RollupRepo(session).refresh(since=datetime(1970, 1, 1, tzinfo=UTC))
     session.flush()
     rolled = service._cafe_from_rollup("cafe-r1", str(seeded))
 

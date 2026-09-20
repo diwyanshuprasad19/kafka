@@ -26,7 +26,7 @@ The cost is that cafe and client figures lag the counter figures by one pass.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -64,7 +64,7 @@ WATERMARK_NAME = "daily_rollups"
 WATERMARK_OVERLAP = timedelta(seconds=5)
 
 # Before the first pass there is no watermark, so start from the epoch.
-_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -82,8 +82,6 @@ class RollupRepo:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    # ----- watermark -----
-
     def watermark(self) -> datetime:
         row = self.session.get(RollupWatermark, WATERMARK_NAME)
         return row.watermark if row else _EPOCH
@@ -93,7 +91,7 @@ class RollupRepo:
         stmt = insert(table).values(
             name=WATERMARK_NAME,
             watermark=value,
-            updated_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(UTC),
         )
         self.session.execute(
             stmt.on_conflict_do_update(
@@ -113,8 +111,6 @@ class RollupRepo:
             )
         ).scalar_one_or_none()
 
-    # ----- refresh -----
-
     def refresh(self, since: datetime | None = None) -> RollupResult:
         """Recompute the rollups for every key whose counters changed since `since`."""
         start = self.watermark() if since is None else since
@@ -132,10 +128,7 @@ class RollupRepo:
     def _changed_keys(self, since: datetime, *columns):
         """The (date, meal, ...) keys touched since `since`, as a subquery."""
         return (
-            select(*columns)
-            .where(DailyCounterAggregation.updated_at > since)
-            .distinct()
-            .subquery()
+            select(*columns).where(DailyCounterAggregation.updated_at > since).distinct().subquery()
         )
 
     def _refresh_cafes(self, since: datetime) -> int:
@@ -157,10 +150,7 @@ class RollupRepo:
                 counter.cafe_id,
                 counter.meal_type,
                 func.count().label("counters"),
-                *[
-                    func.sum(getattr(counter, name)).label(name)
-                    for name in SUMMED_COLUMNS
-                ],
+                *[func.sum(getattr(counter, name)).label(name) for name in SUMMED_COLUMNS],
             )
             .join(
                 changed,
@@ -185,10 +175,7 @@ class RollupRepo:
                 counter.meal_type,
                 func.count().label("counters"),
                 func.count(func.distinct(counter.cafe_id)).label("cafes"),
-                *[
-                    func.sum(getattr(counter, name)).label(name)
-                    for name in SUMMED_COLUMNS
-                ],
+                *[func.sum(getattr(counter, name)).label(name) for name in SUMMED_COLUMNS],
             )
             .join(
                 changed,
@@ -210,7 +197,7 @@ class RollupRepo:
             # counter grain, so re-running it cannot drift.
             set_={
                 **{name: getattr(stmt.excluded, name) for name in columns},
-                "refreshed_at": datetime.now(timezone.utc),
+                "refreshed_at": datetime.now(UTC),
             },
         )
         # rowcount is -1 for INSERT ... FROM SELECT, so count what came back. The

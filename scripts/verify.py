@@ -42,8 +42,9 @@ def check_kafka() -> None:
 
 
 def check_redis() -> None:
-    from checkpoint_platform.config import get_settings
     import redis
+
+    from checkpoint_platform.config import get_settings
 
     settings = get_settings()
     if not settings.redis_enabled:
@@ -65,7 +66,9 @@ def main() -> None:
 
     setup_logging(service="verify")
     s = get_settings()
-    print(f"APP_ENV={s.app_env} kafka={s.kafka_bootstrap_servers} db={s.database_url.split('@')[-1]}")
+    print(
+        f"APP_ENV={s.app_env} kafka={s.kafka_bootstrap_servers} db={s.database_url.split('@')[-1]}"
+    )
 
     errors: list[str] = []
     for name, fn in [

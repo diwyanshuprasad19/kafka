@@ -4,7 +4,10 @@ from pydantic import ValidationError
 from checkpoint_platform.config import get_settings
 from checkpoint_platform.config.container import get_publish_service
 from checkpoint_platform.domain.events import CheckpointCreateRequest
-from checkpoint_platform.infrastructure.observability.logging import get_correlation_id, get_logger
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_correlation_id,
+    get_logger,
+)
 from checkpoint_platform.infrastructure.observability.metrics import PRODUCER_EVENTS
 
 bp = Blueprint("checkpoints", __name__)

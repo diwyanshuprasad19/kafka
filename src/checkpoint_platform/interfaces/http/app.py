@@ -7,8 +7,14 @@ from flask_cors import CORS
 
 from checkpoint_platform.config import get_settings
 from checkpoint_platform.config.container import get_cache, get_publisher
-from checkpoint_platform.infrastructure.observability.logging import get_logger, setup_logging
-from checkpoint_platform.infrastructure.observability.metrics import set_app_info, start_metrics_server
+from checkpoint_platform.infrastructure.observability.logging import (
+    get_logger,
+    setup_logging,
+)
+from checkpoint_platform.infrastructure.observability.metrics import (
+    set_app_info,
+    start_metrics_server,
+)
 from checkpoint_platform.infrastructure.persistence.session import init_db
 from checkpoint_platform.interfaces.http.middleware import register_observability
 from checkpoint_platform.interfaces.http.routes import (
@@ -66,7 +72,11 @@ app = create_app()
 
 def main() -> None:
     settings = get_settings()
-    app.run(host=settings.api_host, port=settings.api_port, debug=settings.app_env == "local")
+    app.run(
+        host=settings.api_host,
+        port=settings.api_port,
+        debug=settings.app_env == "local",
+    )
 
 
 if __name__ == "__main__":

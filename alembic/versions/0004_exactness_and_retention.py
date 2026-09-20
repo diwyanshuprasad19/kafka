@@ -6,15 +6,16 @@ under), records the outcome of rejected corrections, and indexes the columns the
 maintenance worker prunes on.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0004_exactness_and_retention"
-down_revision: Union[str, None] = "0003_checkpoint_history"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0003_checkpoint_history"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -28,15 +29,11 @@ def upgrade() -> None:
     op.add_column("checkpoint_history", sa.Column("aggregation_date", sa.Date()))
     op.add_column(
         "checkpoint_history",
-        sa.Column(
-            "outcome", sa.String(16), nullable=False, server_default="applied"
-        ),
+        sa.Column("outcome", sa.String(16), nullable=False, server_default="applied"),
     )
     op.create_index("ix_history_recorded_at", "checkpoint_history", ["recorded_at"])
 
-    op.create_index(
-        "ix_processed_events_processed_at", "processed_events", ["processed_at"]
-    )
+    op.create_index("ix_processed_events_processed_at", "processed_events", ["processed_at"])
     op.create_index(
         "ix_outbox_pending_only",
         "outbox_events",
@@ -44,9 +41,7 @@ def upgrade() -> None:
         postgresql_where=sa.text("published = false"),
     )
     op.create_index("ix_outbox_published_at", "outbox_events", ["published_at"])
-    op.create_index(
-        "ix_dlq_status_created", "dlq_records", ["reingest_status", "created_at"]
-    )
+    op.create_index("ix_dlq_status_created", "dlq_records", ["reingest_status", "created_at"])
 
     # Existing rows predate unit normalization; they were all recorded in kg.
     op.execute("UPDATE checkpoint_state SET value_kg = value WHERE value IS NOT NULL")
@@ -89,8 +84,6 @@ def downgrade() -> None:
     op.drop_column("checkpoint_history", "outcome")
     op.drop_column("checkpoint_history", "aggregation_date")
     op.drop_column("checkpoint_history", "value_kg")
-    op.drop_index(
-        "ix_checkpoint_state_aggregation_date", table_name="checkpoint_state"
-    )
+    op.drop_index("ix_checkpoint_state_aggregation_date", table_name="checkpoint_state")
     op.drop_column("checkpoint_state", "aggregation_date")
     op.drop_column("checkpoint_state", "value_kg")

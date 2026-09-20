@@ -7,15 +7,16 @@ SQL ``NULL + 5`` is NULL — a single null would silently erase a counter's runn
 total instead of raising. The database now refuses to hold one.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0006_not_null_counters"
-down_revision: Union[str, None] = "0005_full_checkpoint_domain"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0005_full_checkpoint_domain"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # table -> ((column, type, zero-value backfill), ...)
 NOT_NULL_COLUMNS: dict[str, tuple[tuple[str, sa.types.TypeEngine, str], ...]] = {
@@ -45,9 +46,7 @@ def upgrade() -> None:
     for table, columns in NOT_NULL_COLUMNS.items():
         for column, type_, zero in columns:
             # Existing nulls must go before the constraint can be trusted.
-            op.execute(
-                f"UPDATE {table} SET {column} = {zero} WHERE {column} IS NULL"
-            )
+            op.execute(f"UPDATE {table} SET {column} = {zero} WHERE {column} IS NULL")
             op.alter_column(table, column, existing_type=type_, nullable=False)
 
 

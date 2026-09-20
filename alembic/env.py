@@ -2,9 +2,9 @@
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from checkpoint_platform.config import get_settings
 from checkpoint_platform.infrastructure.persistence.base import Base
 from checkpoint_platform.infrastructure.persistence.models import (  # noqa: F401
@@ -75,9 +75,7 @@ def run_migrations_online() -> None:
     finally:
         if lock_connection is not None:
             # Session-level locks also release on disconnect; this is the tidy path.
-            lock_connection.exec_driver_sql(
-                f"SELECT pg_advisory_unlock({MIGRATION_LOCK_ID})"
-            )
+            lock_connection.exec_driver_sql(f"SELECT pg_advisory_unlock({MIGRATION_LOCK_ID})")
             lock_connection.close()
 
 

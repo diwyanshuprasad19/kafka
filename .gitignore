@@ -1,29 +1,42 @@
-*$py.class
-*.egg-info/
-*.log
-*.py[cod]
-*.sqbpro*.egg-info/
-.DS_Store
-.coverage
+# Secrets
 .env
-.env.*.local
-.env.local
-.idea/
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+credentials.json
+**/service-account*.json
+**/*-key.json
+
+# Local envs / deps
 .venv/
-.vscode/
-__pycache__/
-build/
-data/
-dist/
-htmlcov/
 venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/
 
-# Local Kafka broker data
+# Ops / agent outputs
+.platform-ops/
 .kafka-data/
-
-# Benchmark / e2e run logs
 .bench-logs/
 .e2e-logs/
+data/
+*.log
+*.dump
+*.sqlite
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Build
+dist/
+build/

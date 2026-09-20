@@ -1,0 +1,31 @@
+# Example Cloud Run (worker) — aggregation consumer
+# Prefer GCE MIG / GKE Deployment for long-running Kafka consumers.
+# Cloud Run jobs/workers need always-on CPU (min instances).
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: checkpoint-aggregation-consumer
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "2"
+        autoscaling.knative.dev/maxScale: "6"
+    spec:
+      containerConcurrency: 1
+      containers:
+        - image: gcr.io/PROJECT_ID/checkpoint-platform:latest
+          command: ["python", "-m", "checkpoint_platform.interfaces.workers.aggregation_consumer"]
+          env:
+            - name: APP_ENV
+              value: prod
+            - name: RUN_MIGRATIONS
+              value: "false"
+            - name: METRICS_PORT
+              value: "8000"
+            - name: CHECKPOINT_ROOT
+              value: /app
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi

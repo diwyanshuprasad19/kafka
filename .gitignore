@@ -1,0 +1,29 @@
+*$py.class
+*.egg-info/
+*.log
+*.py[cod]
+*.sqbpro*.egg-info/
+.DS_Store
+.coverage
+.env
+.env.*.local
+.env.local
+.idea/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.vscode/
+__pycache__/
+build/
+data/
+dist/
+htmlcov/
+venv/
+
+# Local Kafka broker data
+.kafka-data/
+
+# Benchmark / e2e run logs
+.bench-logs/
+.e2e-logs/

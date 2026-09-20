@@ -1,0 +1,99 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Events processed / min (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(checkpoint_events_processed_total[1m])) * 60",
+          "legendFormat": "events/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 40000 },
+              { "color": "red", "value": 55000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Target events/min",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "checkpoint_target_events_per_minute", "legendFormat": "target" }]
+    },
+    {
+      "title": "Processing p99 (seconds)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(checkpoint_processing_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "title": "Outcomes",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (rate(checkpoint_events_processed_total[1m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "title": "DLQ + Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "rate(checkpoint_dlq_total[1m])", "legendFormat": "dlq/s" },
+        { "expr": "rate(checkpoint_retry_total[1m])", "legendFormat": "retry/s" }
+      ]
+    },
+    {
+      "title": "HTTP requests",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_requests_total[1m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "title": "Consumer lag",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "sum by (topic) (checkpoint_consumer_lag)",
+          "legendFormat": "{{topic}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["checkpoint", "kafka", "ops"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "title": "Checkpoint Aggregation Ops (50k/min)",
+  "uid": "checkpoint-ops-50k",
+  "version": 1
+}

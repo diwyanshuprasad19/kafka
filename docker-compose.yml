@@ -1,0 +1,224 @@
+services:
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: checkpoint-kafka
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      # Dual listeners: kafka:9092 (Compose) + localhost:9094 (host Mac scripts)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 12
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 40s
+
+  postgres:
+    image: postgres:17
+    container_name: checkpoint-postgres
+    environment:
+      POSTGRES_USER: checkpoint
+      POSTGRES_PASSWORD: checkpoint
+      POSTGRES_DB: aggregation
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkpoint -d aggregation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: checkpoint-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: checkpoint-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: checkpoint-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  migrate:
+    build: .
+    container_name: checkpoint-migrate
+    command: ["python", "scripts/bootstrap.py", "--skip-kafka"]
+    env_file: .env
+    environment:
+      PYTHONPATH: /app/src
+      CHECKPOINT_ROOT: /app
+      APP_ENV: local
+      RUN_MIGRATIONS: "false"
+      DATABASE_URL: postgresql+psycopg://checkpoint:checkpoint@postgres:5432/aggregation
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    container_name: checkpoint-api
+    command: ["gunicorn", "-b", "0.0.0.0:8080", "-w", "2", "checkpoint_platform.interfaces.http.app:app"]
+    env_file: .env
+    environment:
+      PYTHONPATH: /app/src
+      CHECKPOINT_ROOT: /app
+      APP_ENV: local
+      RUN_MIGRATIONS: "true"
+      CREATE_TOPICS: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DATABASE_URL: postgresql+psycopg://checkpoint:checkpoint@postgres:5432/aggregation
+      REDIS_URL: redis://redis:6379/0
+      METRICS_PORT: "8000"
+    ports:
+      - "8080:8080"
+      - "8000:8000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  aggregation-consumer-1:
+    build: .
+    container_name: aggregation-consumer-1
+    command: ["python", "-m", "checkpoint_platform.interfaces.workers.aggregation_consumer"]
+    env_file: .env
+    environment:
+      PYTHONPATH: /app/src
+      CHECKPOINT_ROOT: /app
+      APP_ENV: local
+      RUN_MIGRATIONS: "false"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DATABASE_URL: postgresql+psycopg://checkpoint:checkpoint@postgres:5432/aggregation
+      REDIS_URL: redis://redis:6379/0
+      METRICS_PORT: "8001"
+    ports:
+      - "8001:8001"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  aggregation-consumer-2:
+    build: .
+    container_name: aggregation-consumer-2
+    command: ["python", "-m", "checkpoint_platform.interfaces.workers.aggregation_consumer"]
+    env_file: .env
+    environment:
+      PYTHONPATH: /app/src
+      CHECKPOINT_ROOT: /app
+      APP_ENV: local
+      RUN_MIGRATIONS: "false"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DATABASE_URL: postgresql+psycopg://checkpoint:checkpoint@postgres:5432/aggregation
+      REDIS_URL: redis://redis:6379/0
+      METRICS_PORT: "8002"
+    ports:
+      - "8002:8002"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  outbox-publisher:
+    build: .
+    container_name: outbox-publisher
+    command: ["python", "-m", "checkpoint_platform.interfaces.workers.outbox_publisher"]
+    env_file: .env
+    environment:
+      PYTHONPATH: /app/src
+      CHECKPOINT_ROOT: /app
+      APP_ENV: local
+      RUN_MIGRATIONS: "false"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DATABASE_URL: postgresql+psycopg://checkpoint:checkpoint@postgres:5432/aggregation
+      METRICS_PORT: "8003"
+    ports:
+      - "8003:8003"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  reporting-consumer:
+    build: .
+    container_name: reporting-consumer
+    command: ["python", "-m", "checkpoint_platform.interfaces.workers.reporting_consumer"]
+    env_file: .env
+    environment:
+      PYTHONPATH: /app/src
+      CHECKPOINT_ROOT: /app
+      APP_ENV: local
+      RUN_MIGRATIONS: "false"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DATABASE_URL: postgresql+psycopg://checkpoint:checkpoint@postgres:5432/aggregation
+      METRICS_PORT: "8004"
+    ports:
+      - "8004:8004"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  grafanadata:

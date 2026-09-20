@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: checkpoint-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8080"]
+
+  - job_name: checkpoint-api-sidecar
+    static_configs:
+      - targets: ["api:8000"]
+
+  - job_name: aggregation-consumers
+    static_configs:
+      - targets: ["aggregation-consumer-1:8001", "aggregation-consumer-2:8002"]
+
+  - job_name: outbox-publisher
+    static_configs:
+      - targets: ["outbox-publisher:8003"]
+
+  - job_name: reporting-consumer
+    static_configs:
+      - targets: ["reporting-consumer:8004"]

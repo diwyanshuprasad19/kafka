@@ -1,0 +1,39 @@
+name: pr-review
+on:
+  pull_request:
+
+jobs:
+  reviewdog-ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - uses: reviewdog/action-setup@v1
+        with:
+          reviewdog_version: latest
+      - name: ruff → reviewdog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ruff check --output-format=pylint . 2>/dev/null | \
+            reviewdog -f=pylint -name=ruff -reporter=github-pr-review -level=warning || true
+
+  # PR-Agent (Qodo) — OSS AI PR review. Needs OPENAI_KEY (or other provider) as repo secret.
+  pr-agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: PR Agent review
+        uses: qodo-ai/pr-agent@main
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github_action: "true"
+        continue-on-error: true

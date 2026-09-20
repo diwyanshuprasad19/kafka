@@ -1,0 +1,60 @@
+name: release-on-tag
+# Automatic CI/CD when a version tag is pushed (v1.2.3).
+# Requires: gh auth with `workflow` scope to commit this file;
+#           GCP_SA_KEY or Workload Identity + secrets below;
+#           Cloud Run Admin API enabled.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  SERVICE: checkpoint-api
+  REGION: us-central1
+  GCP_PROJECT: project-ca974159-bdd0-4647-b53
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Unit tests
+        run: |
+          pip install -e ".[dev]" ruff
+          ruff check src tests || true
+          pytest tests/ -q --tb=line
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          # Prefer WIF; fallback to JSON key secret if present
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+        continue-on-error: true
+
+      - name: Auth via SA key (fallback)
+        if: ${{ env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE == '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+        continue-on-error: true
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Cloud Build + Deploy
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gcloud builds submit \
+            --project="${GCP_PROJECT}" \
+            --config=deploy/gcp/cloudbuild.yaml \
+            --substitutions="_TAG=${TAG},_SERVICE=${SERVICE},_REGION=${REGION}"

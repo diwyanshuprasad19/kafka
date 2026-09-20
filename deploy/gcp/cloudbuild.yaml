@@ -1,9 +1,4 @@
 # Tag-triggered CI/CD — build image + deploy Cloud Run API
-# Trigger: git tag v*  OR  gcloud builds submit --substitutions=_TAG=$VERSION
-#
-# Local/platform-ops path (works without GitHub workflow scope):
-#   make -C platform-ops release REPO=kafka VERSION=v0.2.0 SERVICE=checkpoint-api
-#
 substitutions:
   _SERVICE: checkpoint-api
   _REGION: us-central1
@@ -11,9 +6,9 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  substitutionOption: ALLOW_LOOSE
 
 steps:
-  # 1) Quality gate inside Cloud Build
   - name: python:3.12-slim
     id: test
     entrypoint: bash
@@ -25,13 +20,10 @@ steps:
         ruff check src tests || true
         pytest tests/ -q --tb=line
 
-  # 2) Build image tagged with git tag / SHORT_SHA
   - name: gcr.io/cloud-builders/docker
     id: build
     args:
       - build
-      - -t
-      - gcr.io/$PROJECT_ID/${_SERVICE}:$SHORT_SHA
       - -t
       - gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}
       - -t
@@ -39,32 +31,32 @@ steps:
       - .
 
   - name: gcr.io/cloud-builders/docker
-    id: push
-    args: ["push", "--all-tags", "gcr.io/$PROJECT_ID/${_SERVICE}"]
+    id: push-tag
+    args: ["push", "gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}"]
 
-  # 3) Deploy API to Cloud Run (consumers stay on GCE/GKE — see cloud-run-consumer.yaml)
+  - name: gcr.io/cloud-builders/docker
+    id: push-latest
+    args: ["push", "gcr.io/$PROJECT_ID/${_SERVICE}:latest"]
+
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: deploy
-    entrypoint: bash
     args:
-      - -c
-      - |
-        set -euo pipefail
-        gcloud run deploy "${_SERVICE}" \
-          --image="gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}" \
-          --region="${_REGION}" \
-          --platform=managed \
-          --allow-unauthenticated \
-          --port=8080 \
-          --cpu=1 \
-          --memory=512Mi \
-          --timeout=300 \
-          --set-env-vars="APP_ENV=prod,LOG_FORMAT=json,RUN_MIGRATIONS=true,CREATE_TOPICS=false,OTEL_SERVICE_NAME=${_SERVICE},CORS_ORIGINS=" \
-          --quiet
-        gcloud run services describe "${_SERVICE}" --region="${_REGION}" --format='value(status.url)'
+      - gcloud
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --cpu=1
+      - --memory=512Mi
+      - --timeout=300
+      - --set-env-vars=APP_ENV=prod,LOG_FORMAT=json,RUN_MIGRATIONS=true,CREATE_TOPICS=false,OTEL_SERVICE_NAME=${_SERVICE},CORS_ORIGINS=
+      - --quiet
 
 images:
-  - gcr.io/$PROJECT_ID/${_SERVICE}:$SHORT_SHA
   - gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}
   - gcr.io/$PROJECT_ID/${_SERVICE}:latest
 

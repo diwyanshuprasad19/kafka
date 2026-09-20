@@ -8,6 +8,8 @@
 credentials.json
 **/service-account*.json
 **/*-key.json
+configs/backend.switch.env
+configs/prod.env
 
 # Local envs / deps
 .venv/

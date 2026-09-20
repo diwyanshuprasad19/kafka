@@ -33,4 +33,21 @@ if [[ "${CREATE_TOPICS:-false}" == "true" ]]; then
   python scripts/create_topics.py || echo "[entrypoint] topic create skipped/failed (broker may not be ready)"
 fi
 
+# Demo cafeteria seed — local only (DEMO_SEED=true + not prod). Prefer bootstrap.py.
+DEMO_NORM="$(printf '%s' "${DEMO_SEED:-false}" | tr '[:upper:]' '[:lower:]')"
+if [[ "$DEMO_NORM" == "true" ]]; then
+  case "$APP_ENV_NORMALIZED" in
+    prod|production|gcp)
+      echo "[entrypoint] FATAL: DEMO_SEED=true is forbidden in ${APP_ENV_NORMALIZED}" >&2
+      exit 1
+      ;;
+    *)
+      if [[ "${SEED_ON_BOOT:-false}" == "true" ]]; then
+        echo "[entrypoint] seeding demo data (SEED_ON_BOOT=true)"
+        python scripts/seed_demo.py --direct || echo "[entrypoint] demo seed skipped/failed"
+      fi
+      ;;
+  esac
+fi
+
 exec "$@"

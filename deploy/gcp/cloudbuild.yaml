@@ -1,8 +1,10 @@
-# Tag-triggered CI/CD — build image + deploy Cloud Run API
+# Tag-triggered CI/CD — build image + alembic job + deploy Cloud Run API
 substitutions:
   _SERVICE: checkpoint-api
   _REGION: us-central1
   _TAG: latest
+  _MIGRATE_JOB: checkpoint-migrate
+  _CLOUD_SQL_INSTANCE: project-ca974159-bdd0-4647-b53:us-central1:checkpoint-pg
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -38,6 +40,35 @@ steps:
     id: push-latest
     args: ["push", "gcr.io/$PROJECT_ID/${_SERVICE}:latest"]
 
+  # One-shot alembic before traffic (safer than RUN_MIGRATIONS on every replica)
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: migrate
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMAGE="gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}"
+        gcloud run jobs deploy "${_MIGRATE_JOB}" \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --image="$${IMAGE}" \
+          --command=alembic \
+          --args=upgrade,head \
+          --set-cloudsql-instances="${_CLOUD_SQL_INSTANCE}" \
+          --set-secrets="DATABASE_URL=checkpoint-database-url:latest" \
+          --set-env-vars="APP_ENV=prod,USE_ALLOYDB=false,DEMO_SEED=false,RUN_MIGRATIONS=false,CHECKPOINT_ROOT=/app,LOG_FORMAT=json" \
+          --max-retries=1 \
+          --task-timeout=15m \
+          --memory=512Mi \
+          --cpu=1 \
+          --quiet
+        gcloud run jobs execute "${_MIGRATE_JOB}" \
+          --project="$PROJECT_ID" \
+          --region="${_REGION}" \
+          --wait \
+          --quiet
+
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: deploy
     args:
@@ -53,11 +84,13 @@ steps:
       - --cpu=1
       - --memory=512Mi
       - --timeout=300
-      - --set-env-vars=APP_ENV=prod,LOG_FORMAT=json,RUN_MIGRATIONS=true,CREATE_TOPICS=false,OTEL_SERVICE_NAME=${_SERVICE},CORS_ORIGINS=
+      - --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
+      - --set-secrets=DATABASE_URL=checkpoint-database-url:latest
+      - --set-env-vars=APP_ENV=prod,LOG_FORMAT=json,RUN_MIGRATIONS=false,CREATE_TOPICS=false,USE_ALLOYDB=false,DEMO_SEED=false,REDIS_ENABLED=false,OTEL_SERVICE_NAME=${_SERVICE},CORS_ORIGINS=,CLOUD_SQL_INSTANCE=${_CLOUD_SQL_INSTANCE}
       - --quiet
 
 images:
   - gcr.io/$PROJECT_ID/${_SERVICE}:${_TAG}
   - gcr.io/$PROJECT_ID/${_SERVICE}:latest
 
-timeout: 1800s
+timeout: 2400s

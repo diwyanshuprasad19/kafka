@@ -40,7 +40,8 @@ def _env_files() -> tuple[str, ...]:
     """
     Load order (later wins):
       1. configs/{local|prod}.env
-      2. .env (secrets / machine overrides)
+      2. configs/backend.switch.env (from scripts/switch_backend.sh — optional)
+      3. .env (secrets / machine overrides)
     Runtime env vars always win over files (pydantic-settings default).
     """
     app_env = normalize_app_env()
@@ -49,6 +50,9 @@ def _env_files() -> tuple[str, ...]:
     env_path = root / "configs" / f"{app_env}.env"
     if env_path.is_file():
         files.append(str(env_path))
+    switch = root / "configs" / "backend.switch.env"
+    if switch.is_file():
+        files.append(str(switch))
     dotenv = root / ".env"
     if dotenv.is_file():
         files.append(str(dotenv))
@@ -132,10 +136,24 @@ class Settings(BaseSettings):
     gcp_region: str = "asia-south1"
     alloydb_instance: str | None = None
     alloydb_cluster: str | None = None
+    # false = local Postgres / Cloud SQL; true = AlloyDB (Auth Proxy or private IP).
+    use_alloydb: bool = False
+    # Cloud SQL instance connection name: PROJECT:REGION:INSTANCE (when use_alloydb=false).
+    cloud_sql_instance: str | None = None
+    # Seed cafeteria demo rows. Allowed only when not prod (preflight enforces).
+    demo_seed: bool = False
 
     @property
     def is_prod(self) -> bool:
         return normalize_app_env(self.app_env) == "prod"
+
+    @property
+    def backend_label(self) -> str:
+        if self.use_alloydb:
+            return "alloydb"
+        if self.is_prod or (self.cloud_sql_instance or "").strip():
+            return "cloudsql"
+        return "local-postgres"
 
     def kafka_client_config(self) -> dict:
         """Identical code path for local + GCP; SASL/SSL applied when configured."""

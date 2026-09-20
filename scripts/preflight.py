@@ -90,6 +90,59 @@ def check_config(settings) -> list[Check]:
                 )
             )
 
+        if settings.demo_seed:
+            results.append(
+                Check(
+                    "config.demo_seed",
+                    FAIL,
+                    "DEMO_SEED=true is not allowed in production",
+                    fix="Set DEMO_SEED=false (demo data is local-only).",
+                )
+            )
+        else:
+            results.append(
+                Check("config.demo_seed", PASS, "DEMO_SEED=false")
+            )
+
+        backend = settings.backend_label
+        if settings.use_alloydb:
+            missing = [
+                name
+                for name, val in (
+                    ("ALLOYDB_CLUSTER", settings.alloydb_cluster),
+                    ("ALLOYDB_INSTANCE", settings.alloydb_instance),
+                )
+                if not (val or "").strip()
+            ]
+            results.append(
+                Check(
+                    "config.backend",
+                    WARN if missing else PASS,
+                    f"USE_ALLOYDB=true ({backend})"
+                    + (f"; missing {', '.join(missing)}" if missing else ""),
+                    fix="Set ALLOYDB_CLUSTER + ALLOYDB_INSTANCE and Auth Proxy DATABASE_URL.",
+                )
+            )
+        else:
+            url = settings.database_url
+            cloudsql_ok = "/cloudsql/" in url or bool(
+                (settings.cloud_sql_instance or "").strip()
+            )
+            results.append(
+                Check(
+                    "config.backend",
+                    PASS if cloudsql_ok else WARN,
+                    f"USE_ALLOYDB=false → {backend}"
+                    + (
+                        ""
+                        if cloudsql_ok
+                        else "; set CLOUD_SQL_INSTANCE or /cloudsql/… in DATABASE_URL"
+                    ),
+                    fix="For Cloud SQL on Cloud Run use Secret Manager socket URL "
+                    "postgresql+psycopg://…@/db?host=/cloudsql/PROJECT:REGION:INSTANCE",
+                )
+            )
+
         protocol = settings.kafka_security_protocol.upper()
         if protocol == "PLAINTEXT":
             results.append(
@@ -145,13 +198,17 @@ def check_config(settings) -> list[Check]:
                 )
             )
 
-        if "sslmode" not in settings.database_url and "127.0.0.1" not in settings.database_url:
+        if (
+            "sslmode" not in settings.database_url
+            and "127.0.0.1" not in settings.database_url
+            and "/cloudsql/" not in settings.database_url
+        ):
             results.append(
                 Check(
                     "config.db_tls",
                     WARN,
-                    "DATABASE_URL has no sslmode and is not going through a local proxy",
-                    fix="Append ?sslmode=require, or connect via the AlloyDB Auth Proxy.",
+                    "DATABASE_URL has no sslmode and is not going through a local/Cloud SQL proxy",
+                    fix="Append ?sslmode=require, use /cloudsql/… socket, or AlloyDB Auth Proxy.",
                 )
             )
 

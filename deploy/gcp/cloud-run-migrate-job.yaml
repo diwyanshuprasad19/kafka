@@ -1,0 +1,33 @@
+# Cloud Run Job — one-shot alembic upgrade head (prefer over RUN_MIGRATIONS on API).
+# Apply/update via: ./scripts/migrate_gcp.sh
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: checkpoint-migrate
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          maxRetries: 1
+          timeoutSeconds: 900
+          containers:
+            - image: gcr.io/PROJECT_ID/checkpoint-api:latest
+              command: ["alembic"]
+              args: ["upgrade", "head"]
+              env:
+                - name: APP_ENV
+                  value: prod
+                - name: USE_ALLOYDB
+                  value: "false"
+                - name: DEMO_SEED
+                  value: "false"
+                - name: RUN_MIGRATIONS
+                  value: "false"
+                - name: CHECKPOINT_ROOT
+                  value: /app
+                # DATABASE_URL from Secret Manager; Cloud SQL via annotation / --set-cloudsql-instances
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 512Mi

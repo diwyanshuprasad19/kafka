@@ -33,20 +33,11 @@ jobs:
           ruff check src tests || true
           pytest tests/ -q --tb=line
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud (WIF)
         uses: google-github-actions/auth@v2
         with:
-          # Prefer WIF; fallback to JSON key secret if present
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
-        continue-on-error: true
-
-      - name: Auth via SA key (fallback)
-        if: ${{ env.CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE == '' }}
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-        continue-on-error: true
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2

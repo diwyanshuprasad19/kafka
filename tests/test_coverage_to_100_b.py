@@ -181,7 +181,9 @@ def test_reingestion_service_paths():
     svc.processed_repo = MagicMock()
     svc.processed_repo.delete.side_effect = RuntimeError("ignore")
 
-    req = ReingestDlqRequest(dlq_ids=[1, 2, 3, 99], new_event_id=True, force=True, reset_retry_count=True)
+    req = ReingestDlqRequest(
+        dlq_ids=[1, 2, 3, 99], new_event_id=True, force=True, reset_retry_count=True
+    )
     result = svc.reingest_dlq(req)
     assert 99 in result["missing_ids"]
     assert any(r.get("status") == "reingested" for r in result["results"])
@@ -323,7 +325,9 @@ def test_http_route_error_and_not_found_paths():
         settings.aggregation_topic = "d"
         settings.kafka_client_config.return_value = {}
         with (
-            patch("checkpoint_platform.interfaces.http.routes.ops.get_settings", return_value=settings),
+            patch(
+                "checkpoint_platform.interfaces.http.routes.ops.get_settings", return_value=settings
+            ),
             patch("redis.from_url", side_effect=RuntimeError("redis down")),
             patch(
                 "confluent_kafka.admin.AdminClient",
@@ -333,13 +337,28 @@ def test_http_route_error_and_not_found_paths():
             st = client.get("/ops/status")
             assert st.status_code == 200
             assert st.json["dependencies"]["kafka"] == "down"
+        # kafka AdminClient success path (ops.py:61-63)
+        md = MagicMock()
+        md.brokers = {0: MagicMock(), 1: MagicMock()}
+        md.topics = {"a": MagicMock(), "b": MagicMock()}
+        admin = MagicMock()
+        admin.list_topics.return_value = md
+        with (
+            patch(
+                "checkpoint_platform.interfaces.http.routes.ops.get_settings", return_value=settings
+            ),
+            patch("redis.from_url", return_value=MagicMock()),
+            patch("confluent_kafka.admin.AdminClient", return_value=admin),
+        ):
+            st_ok = client.get("/ops/status")
+            assert st_ok.status_code == 200
+            assert st_ok.json["dependencies"]["kafka"] == "ok"
+            assert st_ok.json["dependencies"]["kafka_brokers"] == 2
         assert client.get("/ops/scale").status_code == 200
 
         # reingest validation + 500 paths
         pub = app.extensions["publisher"]
-        with patch(
-            "checkpoint_platform.interfaces.http.routes.reingest.ReIngestionService"
-        ) as RIS:
+        with patch("checkpoint_platform.interfaces.http.routes.reingest.ReIngestionService") as RIS:
             RIS.return_value.reingest_dlq.side_effect = RuntimeError("fail")
             assert client.post("/reingest/dlq", json={"dlq_ids": [1]}).status_code == 500
             assert client.post("/reingest/dlq/1", json={}).status_code == 500
@@ -369,7 +388,11 @@ def test_app_cors_and_main_pragmas():
     settings.cors_origins = "http://a.com, http://b.com"
     app_mod._configure_cors(flask_app, settings)
 
-    with patch.object(app_mod, "get_settings", return_value=MagicMock(api_host="0.0.0.0", api_port=8080, app_env="local")):
+    with patch.object(
+        app_mod,
+        "get_settings",
+        return_value=MagicMock(api_host="0.0.0.0", api_port=8080, app_env="local"),
+    ):
         with patch.object(app_mod.app, "run") as run:
             app_mod.main()
             run.assert_called()
@@ -447,7 +470,9 @@ def test_final_thirteen_misses(tmp_path, monkeypatch):
         patch("checkpoint_platform.application.reingestion.CheckpointEvent") as CE,
         patch("checkpoint_platform.application.reingestion.REINGEST_EVENTS"),
     ):
-        CE.model_validate.return_value = MagicMock(event_id=uuid4(), checkpoint_id="cp", counter_id="c")
+        CE.model_validate.return_value = MagicMock(
+            event_id=uuid4(), checkpoint_id="cp", counter_id="c"
+        )
         svc = ReIngestionService(session=session, publisher=publisher)
         row = MagicMock()
         row.id = 9

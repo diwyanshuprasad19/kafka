@@ -1,0 +1,119 @@
+---
+description: >-
+  Autonomous multi-agent helper: folder-scoped work, edge matrix, API docs from
+  code, local verify. HUMAN does final PR/push after review.
+alwaysApply: true
+---
+
+# Autonomous production engineering (orchestrator)
+
+Parent Agent = helper/orchestrator. For behavior changes, bugs, features, meaningful
+refactors, API/persistence/infra changes — run this workflow automatically.
+User does not need to name subagents.
+
+Skip full pipeline for: Q&A, tiny docs/typo/format-only edits.
+
+## Human finish line (mandatory)
+Agents do engineering work through Final Verifier VERIFIED + local-gate green.
+**Do NOT push, force-push, open/merge PRs, or deploy** unless the user explicitly says
+to. Default end state: READY_FOR_HUMAN_PR. Human reviews and PR/pushes.
+
+## 0. Scope lock (mandatory)
+When the user names a folder/repo/path (e.g. `kafka`, `inventory/src/...`):
+1. Set `TARGET_REPO` + `TARGET_PATH` from that request.
+2. Read **that** tree first (code, tests, AGENTS.md, APIs).
+3. Work **only** inside that scope unless a tiny documented cross-cut is required.
+4. No unrelated features, pads, or drive-by cleanups.
+5. Preserve backwards compatibility with existing callers/tests/schemas.
+
+## Repo map
+`kafka` | `redis` | `coding` | `inventory` | `orders` | `distributed-tracing` | `platform-ops`
+
+Gates: `make -C platform-ops local-gate REPO=<name>` → `make anti-slop` (aislop ≥80).
+Ship only when user asks.
+
+## Edge-case matrix
+`test-engineer` / `edge-case-breaker` / `final-verifier` share the matrix in
+`edge-case-breaker.md`. Fix gaps before stopping.
+
+## API documentation (automatic)
+When the task creates/modifies/deletes an HTTP API or changes request/response/
+auth/validation/status/side-effects, after fixes are stable invoke
+**api-documentation-agent** so `docs/api/` matches FINAL code.
+Also invoke it when the user manually asks to document a path.
+
+## Agent communication
+Every subagent call includes:
+
+```
+HANDOFF
+TARGET_REPO:
+TARGET_PATH:
+User request:
+Prior stage output:
+Acceptance criteria:
+Files in scope:
+Out of scope:
+Commands to run:
+Findings so far:
+```
+
+## Stages
+1. product-analyst
+2. architect (if non-trivial)
+3. implementer
+4. test-engineer
+5. Parallel: edge-case-breaker, security-reviewer, production-reviewer
+6. Consolidate findings; auto-fix BLOCKER/CRITICAL/HIGH
+7. Retest → re-review affected (max 3 cycles)
+8. **api-documentation-agent** (if API touched, or user gave a docs path)
+9. final-verifier (includes API doc freshness when APIs changed)
+10. Stop for human — READY_FOR_HUMAN_PR. pr-integrator only if user asked to PR/push.
+
+## Ask user ONLY when
+- Material product ambiguity / missing credentials the agents cannot obtain locally
+- Destructive production action without explicit auth
+- Incompatible architecture with no project convention
+- External system down with **no** local path
+- **Before PR / push / deploy / force-push / merge** — human finish line
+
+## Do NOT ask permission for (just run)
+Local installs, tests, pytest/coverage, lint, ruff, scorecard, anti-slop, alembic
+local, seed scripts, curl/health checks, reading code, editing in-scope files,
+commits **when the user already asked to commit**. Only stop to ask for PR/push/ship.
+
+## Quality scorecard (/100 — ship bar)
+Run `make -C platform-ops scorecard` (excludes DSA coding). Dimensions each /100:
+code_quality · open_source · seed_data · test_coverage · documentation ·
+ai_slop (↑=better) · security · db_identity_indexes · optimal_code · production.
+Target overall ≥ **80**; prefer ≥ **90** before human PR. Fix gaps in-scope.
+
+## DB identity & indexes (when models/SQL exist)
+- Every table needs a clear primary key / identity
+- Hot query columns (FK, lookup, unique business keys) need indexes
+- Migrations (Alembic) must match models; no silent drift
+- Libraries without SQL: mark N/A in scorecard, do not invent schemas
+
+## Optimal code (mandatory)
+Prefer clear structure, typing, small modules, real error handling, reuse OSS
+stack already in repo. Avoid padding, dead stubs, bare excepts, invented APIs.
+
+## Production structure & size limits (mandatory)
+- **Prod layout**: prefer `src/<package>/`, `tests/`, `docs/api/` (from real code),
+  `alembic/` when persistence exists, thin handlers → services → models.
+- **File size**: keep each source/doc file **≤ 600–1000 lines**. Split modules,
+  routes, or docs before adding more. Never pad to fill the budget.
+- **Commit size**: when the user asks to commit, create **one commit per logical
+  unit**, with **≤ 500–700 lines added** (`git diff --cached --numstat` sum of
+  insertions). Split agents/docs/code/tests into separate commits if needed.
+- **Commit message**: clear conventional title + body (why, not only what).
+  Example title: `docs(api): document kafka Flask routes from code`.
+- Never commit secrets, `.env`, `vendor/`, `dist/`, or generated junk.
+
+## Done (agent side)
+Scoped behavior + AC + tests + no HIGH+ + reviews + API docs when APIs changed +
+secrets clean + size limits respected + Final Verifier VERIFIED. Human then PR/pushes.
+
+## Final user response
+COMPLETED / Files / Validation / Edge matrix / API docs / READY_FOR_HUMAN_PR: yes
+No transcripts. Never claim unrun commands or unsolicited PRs.

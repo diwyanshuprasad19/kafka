@@ -1,6 +1,12 @@
 # Agent / AI coding guide
 
-Use this file so code written here (Cursor or Claude Code) stays consistent and **human**, not AI-slop.
+Implementation / bugfix / meaningful refactor work follows the **autonomous
+production-engineering workflow** in `.cursor/rules/autonomous-engineering.mdc`
+and `.cursor/agents/` (product-analyst → architect → implementer → test-engineer →
+edge/security/production reviewers → final-verifier). Prefer saying
+`Implement this feature: …` / `Fix this bug: …` and let the orchestrator drive.
+
+Use this file so code stays consistent and **human**, not AI-slop.
 
 ## Principles
 - Match existing project structure and naming; do not invent parallel frameworks.
@@ -19,10 +25,11 @@ Use this file so code written here (Cursor or Claude Code) stays consistent and 
 - Tools: **aislop**, **sloplint**, **agent-slop-lint**, **ruff**, optional **Strix**.
 
 ## Before finishing a task
-1. `make anti-slop REPO=<kafka|redis|coding>`
-2. `make security REPO=…`
-3. Summarize risk (auth, data, deploy) in the PR.
-4. If deploy-related: note traffic shift + rollback.
+1. `make anti-slop REPO=kafka`
+2. `make local-gate REPO=kafka`
+3. `make security REPO=kafka`
+4. Summarize risk (auth, data, deploy) in the PR.
+5. If deploy-related: note traffic shift + rollback.
 
 ## Stack awareness (kafka)
 - Kafka consumers: commit offsets **after** DB success; rely on idempotency.
@@ -31,4 +38,4 @@ Use this file so code written here (Cursor or Claude Code) stays consistent and 
 
 ## Data locally
 - Shared Postgres/Redis: `make data-up` in platform-ops (5433 / 6380).
-- Migrations: `make alembic REPO=kafka` or `REPO=redis`.
+- Migrations: `make alembic REPO=kafka` or in-repo Alembic.

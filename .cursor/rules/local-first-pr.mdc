@@ -1,0 +1,41 @@
+---
+description: Local-first — unit/e2e must pass and be fixed before any GitHub PR
+alwaysApply: true
+---
+
+# Local-first PR workflow (mandatory)
+
+This workspace (`kafka`, `redis`, `coding`, `inventory`, `orders`,
+`distributed-tracing`) is **local first, GitHub second**.
+
+## When the user asks to raise a PR / push / ship
+
+1. Work only in the named repo folder.
+2. Run from `platform-ops`:
+   ```bash
+   make local-gate REPO=<name>
+   ```
+3. If the gate is **red**: fix failing unit/e2e/curl/load issues locally, re-run
+   until **green**. Do **not** push or open a PR while red.
+4. Then run:
+   ```bash
+   make auto REPO=<name> TITLE="…"
+   ```
+   That runs: anti-slop (aislop ≥80) → local-gate → security/graphify → push → PR.
+   Tool map: `platform-ops/templates/OSS_PIPELINE.md` or `make -C platform-ops oss-map`.
+
+## Never do
+
+- `gh pr create` or `git push` before `local-gate` is green
+- Skip tests with excuses; fix them or ask the user if a test is wrong
+- Deploy to GCP until the PR path is green locally (unless user insists)
+
+## Deploy path (after local + PR)
+
+- Local: `make data-up`, repo `make up` / tests / curl
+- GitHub: PR from `make auto`
+- GCP: `make deploy` / `make traffic` only when user asks
+
+## Hooks
+
+Git `pre-push` and Cursor hooks enforce this. If blocked, fix locally and re-run.

@@ -1,0 +1,64 @@
+---
+description: >-
+  Autonomous multi-agent engineering workflow for features/bugs/refactors.
+  Parent agent orchestrates product → architecture → implement → test → parallel
+  reviews → fix → verify without asking routine next-step questions.
+alwaysApply: true
+---
+
+# Autonomous production engineering (orchestrator)
+
+Parent Agent remains the orchestrator. For requests that change application behavior,
+fix bugs, add features, refactor meaningful code, change APIs/persistence, or change
+infra/config — run this workflow automatically. Do not require the user to name agents.
+
+Lightweight Q&A, tiny docs/typo/format-only edits may skip the full pipeline.
+
+## Repo map (adapt — do not invent parallel stacks)
+- `kafka` / `redis` / `coding` / `inventory` / `orders` / `distributed-tracing` / `platform-ops`
+- Gates: `make -C platform-ops local-gate REPO=<name>` then `make auto` for PRs
+- Anti-slop: aislop ≥ 80 via `make anti-slop` (coding soft-gate)
+- Secrets: never commit `.env`, keys, credentials (see `secrets-ignore` rule)
+
+## Stages
+1. **Understand** — invoke `product-analyst` (handoff: PRODUCT_UNDERSTANDING)
+2. **Architecture** — invoke `architect` for non-trivial work; skip when truly tiny
+3. **Implement** — invoke `implementer` (sole production-code writer in normal flow)
+4. **Test** — invoke `test-engineer`; return defects to Implementer immediately
+5. **Parallel review** — after green tests, launch concurrently when applicable:
+   `edge-case-breaker`, `security-reviewer`, `production-reviewer`
+6. **Consolidate** — dedupe findings; severity BLOCKER > CRITICAL > HIGH > MEDIUM > LOW
+7. **Repair** — auto-fix BLOCKER/CRITICAL/HIGH; MEDIUM if safe/local; LOW if trivial.
+   Do NOT ask “should I continue/fix/test?”
+8. **Retest** — Test Engineer / focused tests after repairs
+9. **Re-review** — only reviewers affected by the fix (max **3** remediation cycles)
+10. **Final verify** — invoke `final-verifier` on FINAL state; complete only if VERIFIED
+
+## Handoffs
+Subagents have isolated context. Always pass: user request, acceptance criteria,
+plan, file paths, diff summary, test commands, prior findings, fixes already applied.
+
+## Parallelism
+Parallelize readonly reviews. Never have multiple writers edit the same checkout
+concurrently unless using isolated worktrees and deliberate integration.
+
+## Ask the user ONLY when
+- Materially different product behaviors cannot be inferred safely
+- Required credentials/access missing
+- Destructive/irreversible action without clear authorization
+- Incompatible architecture choices with external behavior impact and no convention
+- Required external system down with no local verification path
+
+## Git / deploy safety
+Inspect git freely. Do **not** push, force-push, merge protected branches, release,
+deploy, or rewrite history unless the user explicitly asked. Do not auto-commit
+unless the user requested commits. Preserve unrelated user work.
+
+## Definition of done
+Behavior + acceptance criteria + conventions + tests + lint where configured +
+no unresolved BLOCKER/CRITICAL/HIGH + reviews when relevant + no secrets + Final
+Verifier VERIFIED. Passing tests alone ≠ production ready.
+
+## Final user response
+Concise: COMPLETED / Files / Validation / Reviews / Assumptions / Remaining concerns.
+Never dump internal agent transcripts. Never claim a command ran if it did not.

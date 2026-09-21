@@ -100,9 +100,7 @@ def check_config(settings) -> list[Check]:
                 )
             )
         else:
-            results.append(
-                Check("config.demo_seed", PASS, "DEMO_SEED=false")
-            )
+            results.append(Check("config.demo_seed", PASS, "DEMO_SEED=false"))
 
         backend = settings.backend_label
         if settings.use_alloydb:
@@ -125,9 +123,7 @@ def check_config(settings) -> list[Check]:
             )
         else:
             url = settings.database_url
-            cloudsql_ok = "/cloudsql/" in url or bool(
-                (settings.cloud_sql_instance or "").strip()
-            )
+            cloudsql_ok = "/cloudsql/" in url or bool((settings.cloud_sql_instance or "").strip())
             results.append(
                 Check(
                     "config.backend",

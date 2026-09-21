@@ -52,18 +52,14 @@ def _make_app(session, cache, publisher):
     def _session():
         return session
 
-    with patch("checkpoint_platform.config.container.get_session", _session), patch(
-        "checkpoint_platform.interfaces.http.routes.health.get_session", _session
-    ), patch(
-        "checkpoint_platform.interfaces.http.routes.aggregations.get_session", _session
-    ), patch(
-        "checkpoint_platform.interfaces.http.routes.dlq.get_session", _session
-    ), patch(
-        "checkpoint_platform.interfaces.http.routes.ops.get_session", _session
-    ), patch(
-        "checkpoint_platform.interfaces.http.routes.history.get_session", _session
-    ), patch(
-        "checkpoint_platform.interfaces.http.routes.reingest.get_session", _session
+    with (
+        patch("checkpoint_platform.config.container.get_session", _session),
+        patch("checkpoint_platform.interfaces.http.routes.health.get_session", _session),
+        patch("checkpoint_platform.interfaces.http.routes.aggregations.get_session", _session),
+        patch("checkpoint_platform.interfaces.http.routes.dlq.get_session", _session),
+        patch("checkpoint_platform.interfaces.http.routes.ops.get_session", _session),
+        patch("checkpoint_platform.interfaces.http.routes.history.get_session", _session),
+        patch("checkpoint_platform.interfaces.http.routes.reingest.get_session", _session),
     ):
         for mod in (health, checkpoints, aggregations, history, dlq, reingest, metrics, ops):
             app.register_blueprint(mod.bp)
@@ -110,6 +106,7 @@ def test_serializer_roundtrip():
     back = deserialize(raw)
     assert back["amt"] == 1.5
     assert deserialize(raw.decode())["day"].startswith("2024")
+
     # model_dump path
     class M:
         def model_dump(self, mode="json"):
@@ -281,7 +278,10 @@ def test_redis_cache_disabled_and_fakeredis(monkeypatch):
             redis_enabled=True, redis_url="redis://localhost:6379/0", redis_cache_ttl_seconds=30
         ),
     )
-    with patch("checkpoint_platform.infrastructure.cache.redis_cache.redis.from_url", return_value=fake):
+    with patch(
+        "checkpoint_platform.infrastructure.cache.redis_cache.redis.from_url",
+        return_value=fake,
+    ):
         cache3 = rc.RedisAggregateCache()
         assert cache3.get("d", "c", "LUNCH") == {"ok": True}
         cache3.set("d", "c", "LUNCH", {"x": 1})

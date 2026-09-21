@@ -145,5 +145,5 @@ def main() -> None:
     run(once="--once" in sys.argv)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

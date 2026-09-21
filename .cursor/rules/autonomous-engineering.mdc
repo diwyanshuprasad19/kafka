@@ -1,64 +1,95 @@
 ---
 description: >-
-  Autonomous multi-agent engineering workflow for features/bugs/refactors.
-  Parent agent orchestrates product → architecture → implement → test → parallel
-  reviews → fix → verify without asking routine next-step questions.
+  Autonomous multi-agent helper: folder-scoped work, edge matrix, API docs from
+  code, local verify. HUMAN does final PR/push after review.
 alwaysApply: true
 ---
 
 # Autonomous production engineering (orchestrator)
 
-Parent Agent remains the orchestrator. For requests that change application behavior,
-fix bugs, add features, refactor meaningful code, change APIs/persistence, or change
-infra/config — run this workflow automatically. Do not require the user to name agents.
+Parent Agent = helper/orchestrator. For behavior changes, bugs, features, meaningful
+refactors, API/persistence/infra changes — run this workflow automatically.
+User does not need to name subagents.
 
-Lightweight Q&A, tiny docs/typo/format-only edits may skip the full pipeline.
+Skip full pipeline for: Q&A, tiny docs/typo/format-only edits.
 
-## Repo map (adapt — do not invent parallel stacks)
-- `kafka` / `redis` / `coding` / `inventory` / `orders` / `distributed-tracing` / `platform-ops`
-- Gates: `make -C platform-ops local-gate REPO=<name>` then `make auto` for PRs
-- Anti-slop: aislop ≥ 80 via `make anti-slop` (coding soft-gate)
-- Secrets: never commit `.env`, keys, credentials (see `secrets-ignore` rule)
+## Human finish line (mandatory)
+Agents do engineering work through Final Verifier VERIFIED + local-gate green.
+**Do NOT push, force-push, open/merge PRs, or deploy** unless the user explicitly says
+to. Default end state: READY_FOR_HUMAN_PR. Human reviews and PR/pushes.
+
+## 0. Scope lock (mandatory)
+When the user names a folder/repo/path (e.g. `kafka`, `inventory/src/...`):
+1. Set `TARGET_REPO` + `TARGET_PATH` from that request.
+2. Read **that** tree first (code, tests, AGENTS.md, APIs).
+3. Work **only** inside that scope unless a tiny documented cross-cut is required.
+4. No unrelated features, pads, or drive-by cleanups.
+5. Preserve backwards compatibility with existing callers/tests/schemas.
+
+## Repo map
+`kafka` | `redis` | `coding` | `inventory` | `orders` | `distributed-tracing` | `platform-ops`
+
+Gates: `make -C platform-ops local-gate REPO=<name>` → `make anti-slop` (aislop ≥80).
+Ship only when user asks.
+
+## Edge-case matrix
+`test-engineer` / `edge-case-breaker` / `final-verifier` share the matrix in
+`edge-case-breaker.md`. Fix gaps before stopping.
+
+## API documentation (automatic)
+When the task creates/modifies/deletes an HTTP API or changes request/response/
+auth/validation/status/side-effects, after fixes are stable invoke
+**api-documentation-agent** so `docs/api/` matches FINAL code.
+Also invoke it when the user manually asks to document a path.
+
+## Agent communication
+Every subagent call includes:
+
+```
+HANDOFF
+TARGET_REPO:
+TARGET_PATH:
+User request:
+Prior stage output:
+Acceptance criteria:
+Files in scope:
+Out of scope:
+Commands to run:
+Findings so far:
+```
 
 ## Stages
-1. **Understand** — invoke `product-analyst` (handoff: PRODUCT_UNDERSTANDING)
-2. **Architecture** — invoke `architect` for non-trivial work; skip when truly tiny
-3. **Implement** — invoke `implementer` (sole production-code writer in normal flow)
-4. **Test** — invoke `test-engineer`; return defects to Implementer immediately
-5. **Parallel review** — after green tests, launch concurrently when applicable:
-   `edge-case-breaker`, `security-reviewer`, `production-reviewer`
-6. **Consolidate** — dedupe findings; severity BLOCKER > CRITICAL > HIGH > MEDIUM > LOW
-7. **Repair** — auto-fix BLOCKER/CRITICAL/HIGH; MEDIUM if safe/local; LOW if trivial.
-   Do NOT ask “should I continue/fix/test?”
-8. **Retest** — Test Engineer / focused tests after repairs
-9. **Re-review** — only reviewers affected by the fix (max **3** remediation cycles)
-10. **Final verify** — invoke `final-verifier` on FINAL state; complete only if VERIFIED
+1. product-analyst
+2. architect (if non-trivial)
+3. implementer
+4. test-engineer
+5. Parallel: edge-case-breaker, security-reviewer, production-reviewer
+6. Consolidate findings; auto-fix BLOCKER/CRITICAL/HIGH
+7. Retest → re-review affected (max 3 cycles)
+8. **api-documentation-agent** (if API touched, or user gave a docs path)
+9. final-verifier (includes API doc freshness when APIs changed)
+10. Stop for human — READY_FOR_HUMAN_PR. pr-integrator only if user asked to PR/push.
 
-## Handoffs
-Subagents have isolated context. Always pass: user request, acceptance criteria,
-plan, file paths, diff summary, test commands, prior findings, fixes already applied.
+## Ask user ONLY when
+Material product ambiguity / missing credentials / destructive action without auth /
+incompatible architecture with no convention / external system down with no local path.
 
-## Parallelism
-Parallelize readonly reviews. Never have multiple writers edit the same checkout
-concurrently unless using isolated worktrees and deliberate integration.
+## Production structure & size limits (mandatory)
+- **Prod layout**: prefer `src/<package>/`, `tests/`, `docs/api/` (from real code),
+  `alembic/` when persistence exists, thin handlers → services → models.
+- **File size**: keep each source/doc file **≤ 600–1000 lines**. Split modules,
+  routes, or docs before adding more. Never pad to fill the budget.
+- **Commit size**: when the user asks to commit, create **one commit per logical
+  unit**, with **≤ 500–700 lines added** (`git diff --cached --numstat` sum of
+  insertions). Split agents/docs/code/tests into separate commits if needed.
+- **Commit message**: clear conventional title + body (why, not only what).
+  Example title: `docs(api): document kafka Flask routes from code`.
+- Never commit secrets, `.env`, `vendor/`, `dist/`, or generated junk.
 
-## Ask the user ONLY when
-- Materially different product behaviors cannot be inferred safely
-- Required credentials/access missing
-- Destructive/irreversible action without clear authorization
-- Incompatible architecture choices with external behavior impact and no convention
-- Required external system down with no local verification path
-
-## Git / deploy safety
-Inspect git freely. Do **not** push, force-push, merge protected branches, release,
-deploy, or rewrite history unless the user explicitly asked. Do not auto-commit
-unless the user requested commits. Preserve unrelated user work.
-
-## Definition of done
-Behavior + acceptance criteria + conventions + tests + lint where configured +
-no unresolved BLOCKER/CRITICAL/HIGH + reviews when relevant + no secrets + Final
-Verifier VERIFIED. Passing tests alone ≠ production ready.
+## Done (agent side)
+Scoped behavior + AC + tests + no HIGH+ + reviews + API docs when APIs changed +
+secrets clean + size limits respected + Final Verifier VERIFIED. Human then PR/pushes.
 
 ## Final user response
-Concise: COMPLETED / Files / Validation / Reviews / Assumptions / Remaining concerns.
-Never dump internal agent transcripts. Never claim a command ran if it did not.
+COMPLETED / Files / Validation / Edge matrix / API docs / READY_FOR_HUMAN_PR: yes
+No transcripts. Never claim unrun commands or unsolicited PRs.

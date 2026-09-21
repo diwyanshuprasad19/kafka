@@ -112,7 +112,7 @@ def test_query_aggregates_cache_and_history():
 
     dlq_row = MagicMock()
     dlq_row.id = 1
-    session.execute.return_value  # keep
+    _ = session.execute.return_value
     svc.dlq_repo = MagicMock()
     svc.dlq_repo.get_by_id.return_value = None
     assert svc.get_dlq(1) is None
@@ -198,12 +198,6 @@ def test_reingestion_service_paths():
     req2 = ReingestDlqRequest(dlq_ids=[10], new_event_id=False, force=True, reset_retry_count=False)
     assert svc.reingest_dlq(req2)["results"][0]["status"] == "reingested"
 
-    ev_req = ReingestEventsRequest(
-        events=[_checkpoint_payload(), {"bad": True}, _checkpoint_payload()],
-        new_event_id=True,
-    )
-    publisher.publish_checkpoint.side_effect = [None, None, RuntimeError("pub fail")]
-    # first ok, second validation fail, third — need separate
     publisher.publish_checkpoint.side_effect = None
 
     def pub_side(event):
@@ -357,7 +351,6 @@ def test_http_route_error_and_not_found_paths():
         assert client.get("/ops/scale").status_code == 200
 
         # reingest validation + 500 paths
-        pub = app.extensions["publisher"]
         with patch("checkpoint_platform.interfaces.http.routes.reingest.ReIngestionService") as RIS:
             RIS.return_value.reingest_dlq.side_effect = RuntimeError("fail")
             assert client.post("/reingest/dlq", json={"dlq_ids": [1]}).status_code == 500

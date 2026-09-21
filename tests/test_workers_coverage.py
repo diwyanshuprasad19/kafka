@@ -35,7 +35,7 @@ def test_throughput_window_and_offsets():
     m3.offset.return_value = 1
     with patch.object(ac, "TopicPartition", side_effect=lambda t, p, o: (t, p, o)):
         parts = ac._offsets_to_commit([m1, m2, m3])
-    assert ( "t", 0, 8) in parts
+    assert ("t", 0, 8) in parts
     assert ("t", 1, 2) in parts
 
 
@@ -282,6 +282,7 @@ def test_outbox_invalidate_and_run():
     ):
         tmod.sleep = MagicMock()
         op._running = True
+
         # empty → sleep; then publish batch; then fail path; then stop
         def fetch2(limit=500):
             state["n"] += 1
@@ -518,7 +519,9 @@ def test_maintenance_prune_report_and_run():
         patch.object(mw, "init_db"),
         patch.object(mw, "start_metrics_server"),
         patch.object(mw, "get_session", side_effect=get_session),
-        patch.object(mw, "prune_once", side_effect=[ {"processed_events": mw.CHUNK}, RuntimeError("x")]),
+        patch.object(
+            mw, "prune_once", side_effect=[{"processed_events": mw.CHUNK}, RuntimeError("x")]
+        ),
         patch.object(mw, "report_backlogs", return_value={"outbox_pending": 0, "dlq_pending": 0}),
         patch.object(mw, "signal"),
         patch.object(mw, "time") as tmod,
@@ -539,7 +542,9 @@ def test_maintenance_prune_report_and_run():
 
     with (
         patch.object(mw, "run") as run,
-        patch.object(mw.sys if hasattr(mw, "sys") else __import__("sys"), "argv", ["maintenance", "--once"]),
+        patch.object(
+            mw.sys if hasattr(mw, "sys") else __import__("sys"), "argv", ["maintenance", "--once"]
+        ),
     ):
         # main imports sys locally
         with patch("sys.argv", ["maintenance", "--once"]):

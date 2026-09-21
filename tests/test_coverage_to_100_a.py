@@ -133,7 +133,10 @@ def test_settings_helpers_and_reload(monkeypatch, tmp_path):
     assert settings_mod.normalize_app_env("gcp") == "prod"
     assert settings_mod.normalize_app_env("dev") == "local"
     assert settings_mod.normalize_app_env("weird") == "weird"
-    assert settings_mod.normalize_app_env("") == "local" or settings_mod.normalize_app_env("   ") == "local"
+    assert (
+        settings_mod.normalize_app_env("") == "local"
+        or settings_mod.normalize_app_env("   ") == "local"
+    )
 
     files = settings_mod._env_files()
     assert isinstance(files, tuple)
@@ -242,7 +245,9 @@ def test_kafka_admin_consumer_producer_session_logging(monkeypatch):
         patch.object(kc, "get_settings", return_value=settings),
         patch.object(kc, "Consumer", return_value=consumer),
     ):
-        kc.build_consumer(group_id="g", topics=["t"], on_assign=lambda *a: None, on_revoke=lambda *a: None)
+        kc.build_consumer(
+            group_id="g", topics=["t"], on_assign=lambda *a: None, on_revoke=lambda *a: None
+        )
         kc.build_consumer(throughput_mode="high")
 
     producer = MagicMock()
@@ -354,7 +359,10 @@ def test_repositories_branches():
     hr = repos.HistoryRepo(session)
     now = datetime.now(UTC)
     session.execute.return_value = _exec_result(rows=[])
-    assert hr.list_for_counter("c", from_ts=now, to_ts=now, meal_type="LUNCH", checkpoint_type="X") == []
+    assert (
+        hr.list_for_counter("c", from_ts=now, to_ts=now, meal_type="LUNCH", checkpoint_type="X")
+        == []
+    )
     assert hr.list_for_cafe("cafe", from_ts=now, to_ts=now) == []
 
     ar = repos.AggregationRepo(session)
@@ -365,7 +373,9 @@ def test_repositories_branches():
     assert ar.list_by_cafe(date(2024, 1, 1), "cafe") == []
     session.execute.return_value = _exec_result(one=None)
     assert (
-        ar.apply_deltas(key, client_id="c", cafe_id="cafe", deltas={n: 0 for n in repos.DELTA_COLUMNS})
+        ar.apply_deltas(
+            key, client_id="c", cafe_id="cafe", deltas={n: 0 for n in repos.DELTA_COLUMNS}
+        )
         is None
     )
 
@@ -587,5 +597,3 @@ def test_event_processing_duplicate_stale_retry_wait():
 # ---------------------------------------------------------------------------
 # query_aggregates gaps
 # ---------------------------------------------------------------------------
-
-

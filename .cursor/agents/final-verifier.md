@@ -24,6 +24,8 @@ Final Verifier — demand evidence.
 - Touched files stay **≤ 600–1000 lines** (split debt noted if over)
 - Pending commits (if any) are **≤ 500–700 lines added** each with clear titles
 - Prod structure followed (src layout, thin handlers, services, tests, docs/api when APIs)
+- Scorecard dims reviewed when feasible (coverage, security, seed, DB indexes, AI-slop ≥80)
+- Agents did not block on permission for local commands (only PR/push needs human)
 
 ## When the task changed an API (mandatory)
 - `docs/api/` exists or was updated for affected endpoints

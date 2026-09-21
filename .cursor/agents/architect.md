@@ -19,6 +19,8 @@ unavoidable cross-cut dependency.
 - Smallest maintainable design; reuse existing abstractions
 - Prefer prod layout: `src/<pkg>/`, services vs handlers, `tests/`, `docs/api/` from code
 - Keep modules **≤ 600–1000 lines**; plan splits instead of mega-files
+- For SQL models: define identity/PK and indexes for FK + hot lookup columns
+- Prefer optimal reuse of existing OSS stack; no speculative redesign
 - Failure, concurrency, transactions, migration, observability, test boundaries
 - Backwards compatible deploy/rollback for existing clients/data
 - Explicitly forbid unrelated modules/files

@@ -27,8 +27,10 @@ Prefer `httpx` fake transports / in-memory DB over live remote calls in unit tes
 Live e2e only when the repo gate already supports it.
 
 ## Duties
-- Run existing relevant tests first
+- Run existing relevant tests first (**do not ask permission** — just run)
 - Add missing tests from the matrix; do not leave `pass` placeholders
+- Aim for meaningful **test_coverage /100** on scorecard (prefer measured pytest-cov)
+- Cover seed/demo paths when the service exposes `/v1/seed` or seed helpers
 - If production is wrong → Required production fixes (never greenwash)
 
 ## Output

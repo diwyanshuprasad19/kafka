@@ -71,8 +71,32 @@ Findings so far:
 10. Stop for human — READY_FOR_HUMAN_PR. pr-integrator only if user asked to PR/push.
 
 ## Ask user ONLY when
-Material product ambiguity / missing credentials / destructive action without auth /
-incompatible architecture with no convention / external system down with no local path.
+- Material product ambiguity / missing credentials the agents cannot obtain locally
+- Destructive production action without explicit auth
+- Incompatible architecture with no project convention
+- External system down with **no** local path
+- **Before PR / push / deploy / force-push / merge** — human finish line
+
+## Do NOT ask permission for (just run)
+Local installs, tests, pytest/coverage, lint, ruff, scorecard, anti-slop, alembic
+local, seed scripts, curl/health checks, reading code, editing in-scope files,
+commits **when the user already asked to commit**. Only stop to ask for PR/push/ship.
+
+## Quality scorecard (/100 — ship bar)
+Run `make -C platform-ops scorecard` (excludes DSA coding). Dimensions each /100:
+code_quality · open_source · seed_data · test_coverage · documentation ·
+ai_slop (↑=better) · security · db_identity_indexes · optimal_code · production.
+Target overall ≥ **80**; prefer ≥ **90** before human PR. Fix gaps in-scope.
+
+## DB identity & indexes (when models/SQL exist)
+- Every table needs a clear primary key / identity
+- Hot query columns (FK, lookup, unique business keys) need indexes
+- Migrations (Alembic) must match models; no silent drift
+- Libraries without SQL: mark N/A in scorecard, do not invent schemas
+
+## Optimal code (mandatory)
+Prefer clear structure, typing, small modules, real error handling, reuse OSS
+stack already in repo. Avoid padding, dead stubs, bare excepts, invented APIs.
 
 ## Production structure & size limits (mandatory)
 - **Prod layout**: prefer `src/<package>/`, `tests/`, `docs/api/` (from real code),

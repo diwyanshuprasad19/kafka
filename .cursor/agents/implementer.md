@@ -25,6 +25,10 @@ HANDOFF with TARGET_REPO/TARGET_PATH, PRODUCT_UNDERSTANDING, ARCHITECTURE_PLAN.
   tests mirror packages; document APIs from code into `docs/api/` when HTTP changes
 - When user asks to **commit**: ≤ **500–700 lines added** per commit; proper title +
   description; split agents / docs / code / tests across commits as needed
+- **Do not ask** to run local tests/lint/scorecard/seed — just run them
+- Only the human finish line (PR/push/deploy) needs an explicit user ask
+- Check models for PK/identity + indexes on FK/lookup columns when touching DB
+- Prefer optimal patterns already in-repo (services, typing, OTel, circuit breakers)
 
 ## Before complete
 1. Format/lint if configured (`ruff`)

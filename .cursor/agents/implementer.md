@@ -29,6 +29,8 @@ HANDOFF with TARGET_REPO/TARGET_PATH, PRODUCT_UNDERSTANDING, ARCHITECTURE_PLAN.
 - Only the human finish line (PR/push/deploy) needs an explicit user ask
 - Check models for PK/identity + indexes on FK/lookup columns when touching DB
 - Prefer optimal patterns already in-repo (services, typing, OTel, circuit breakers)
+- Drive TARGET_REPO scorecard to **all dimensions 100/100** before done
+- Never stage secrets/vendor/dist/.coverage for commits meant for PR
 
 ## Before complete
 1. Format/lint if configured (`ruff`)

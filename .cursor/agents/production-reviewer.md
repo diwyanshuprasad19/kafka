@@ -17,6 +17,8 @@ Prod review for TARGET_REPO as if real traffic + flaky remotes will hit it.
 - Reports/metrics/telemetry: safe when empty; no credential logging
 - Ready vs live: ready fails when DB/dep unavailable if that is the contract
 - Scope: flag files outside TARGET_PATH
+- Scorecard all dimensions 100/100 before calling READY
+- PR content must be code-only (no vendor/dist/secrets/coverage junk)
 
 ## Output
 

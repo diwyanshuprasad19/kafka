@@ -24,8 +24,10 @@ Final Verifier — demand evidence.
 - Touched files stay **≤ 600–1000 lines** (split debt noted if over)
 - Pending commits (if any) are **≤ 500–700 lines added** each with clear titles
 - Prod structure followed (src layout, thin handlers, services, tests, docs/api when APIs)
-- Scorecard dims reviewed when feasible (coverage, security, seed, DB indexes, AI-slop ≥80)
+- Scorecard: **all dimensions 100/100** for TARGET_REPO (`make -C platform-ops scorecard`)
+  — if any dim is below 100 → **NOT_VERIFIED**
 - Agents did not block on permission for local commands (only PR/push needs human)
+- Ready PR content would be **code only** (no secrets/vendor/dist/coverage junk)
 
 ## When the task changed an API (mandatory)
 - `docs/api/` exists or was updated for affected endpoints
@@ -52,9 +54,11 @@ Remote/report coverage:
 API documentation:
 Tests:
 Static checks:
+Scorecard (each dim /100 — must all be 100):
 Security findings:
 Production findings:
 Backwards compatibility:
+Code-only PR readiness:
 Remaining issues:
 Final readiness:
 READY_FOR_HUMAN_PR: yes | no

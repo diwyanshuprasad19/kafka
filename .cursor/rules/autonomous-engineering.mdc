@@ -82,11 +82,30 @@ Local installs, tests, pytest/coverage, lint, ruff, scorecard, anti-slop, alembi
 local, seed scripts, curl/health checks, reading code, editing in-scope files,
 commits **when the user already asked to commit**. Only stop to ask for PR/push/ship.
 
-## Quality scorecard (/100 — ship bar)
-Run `make -C platform-ops scorecard` (excludes DSA coding). Dimensions each /100:
+## Quality scorecard (/100 — mandatory ship bar)
+Run `make -C platform-ops scorecard` (or `./scripts/scorecard.sh`) without asking.
+DSA `coding` is excluded by default.
+
+**Every dimension must be 100/100** for the TARGET_REPO before READY_FOR_HUMAN_PR:
 code_quality · open_source · seed_data · test_coverage · documentation ·
-ai_slop (↑=better) · security · db_identity_indexes · optimal_code · production.
-Target overall ≥ **80**; prefer ≥ **90** before human PR. Fix gaps in-scope.
+ai_slop · security · db_identity_indexes · optimal_code · production.
+
+If any dimension is below 100 → fix in-scope until scorecard is all 100s, then re-run.
+Do not claim ship-ready with overall below 100 or any dim below 100.
+
+## PR / push — **code only** (mandatory)
+When the user asks to PR/push (pr-integrator / `make auto`):
+- Stage and push **code and necessary project config only**:
+  `src/`, `tests/`, `alembic/`, `pyproject.toml` / `requirements*.txt`,
+  `Makefile`, `Dockerfile` / `docker-compose*.yml`, `docs/api/` (from real code),
+  `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `AGENTS.md`, `ANTI_SLOP.md`,
+  `.github/workflows/` when intentional, and in-scope `.cursor/agents|rules` only
+  if the task was about the agent kit.
+- **Never** PR/push: `.env`, secrets, `vendor/`, `dist/`, `.coverage`,
+  `htmlcov/`, `__pycache__/`, `.venv/`, `node_modules/`, `graphify-out/`,
+  `.platform-ops/` artifacts, scorecard JSON dumps, credentials, keys, PEMs.
+- Prefer one focused code PR per TARGET_REPO; no drive-by unrelated files.
+- Confirm scorecard all-100 for that repo before `make auto` / push.
 
 ## DB identity & indexes (when models/SQL exist)
 - Every table needs a clear primary key / identity
@@ -112,7 +131,8 @@ stack already in repo. Avoid padding, dead stubs, bare excepts, invented APIs.
 
 ## Done (agent side)
 Scoped behavior + AC + tests + no HIGH+ + reviews + API docs when APIs changed +
-secrets clean + size limits respected + Final Verifier VERIFIED. Human then PR/pushes.
+secrets clean + size limits respected + **scorecard all dimensions 100/100** +
+Final Verifier VERIFIED. Human then PR/pushes **code only**.
 
 ## Final user response
 COMPLETED / Files / Validation / Edge matrix / API docs / READY_FOR_HUMAN_PR: yes

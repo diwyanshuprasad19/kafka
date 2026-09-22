@@ -448,7 +448,7 @@ def test_final_thirteen_misses(tmp_path, monkeypatch):
     with patch.object(settings_mod, "__file__", str(lonely)):
         assert settings_mod._find_repo_root() == lonely_root
 
-    # reingestion.py:161-162 — force delete raises then continues
+    # reingestion.py — force delete failure must fail the reingest (no silent skip)
     publisher = MagicMock()
     session = MagicMock()
     processed = MagicMock()
@@ -479,15 +479,16 @@ def test_final_thirteen_misses(tmp_path, monkeypatch):
             "status": CheckpointStatus.PASS.value,
             "occurred_at": datetime.now(UTC).isoformat(),
         }
-        svc._reingest_one_dlq(
-            row=row,
-            new_event_id=False,
-            force=True,
-            reset_retry_count=True,
-            correlation_id="corr",
-        )
+        with pytest.raises(ValueError, match="force reingest cannot clear"):
+            svc._reingest_one_dlq(
+                row=row,
+                new_event_id=False,
+                force=True,
+                reset_retry_count=True,
+                correlation_id="corr",
+            )
         processed.delete.assert_called()
-        publisher.publish_checkpoint.assert_called()
+        publisher.publish_checkpoint.assert_not_called()
 
     # aggregations.py:19,33 + history.py:181 — success jsonify paths
     session2 = MagicMock()
@@ -512,3 +513,8 @@ def test_final_thirteen_misses(tmp_path, monkeypatch):
         assert r2.status_code == 200 and r2.json["ok"] == 2
         r3 = client.get("/reporting/counter/c1")
         assert r3.status_code == 200 and r3.json["ok"] == 3
+        # history datetime validation → 400 (not 500)
+        bad = client.get("/history/events/counter/c1?from=not-a-date")
+        assert bad.status_code == 400
+        bad2 = client.get("/history/events/cafe/cafe1?to=also-bad")
+        assert bad2.status_code == 400

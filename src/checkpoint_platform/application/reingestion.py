@@ -158,8 +158,15 @@ class ReIngestionService:
         elif force and old_event_id:
             try:
                 self.processed_repo.delete(UUID(str(old_event_id)))
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "force_reingest_delete_failed",
+                    event_id=str(old_event_id),
+                    error=str(exc),
+                )
+                raise ValueError(
+                    f"force reingest cannot clear processed event {old_event_id}: {exc}"
+                ) from exc
 
         if reset_retry_count:
             payload["retry_count"] = 0

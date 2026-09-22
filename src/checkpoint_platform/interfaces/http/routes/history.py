@@ -15,7 +15,10 @@ bp = Blueprint("history", __name__)
 def _parse_dt(value: str | None) -> datetime | None:
     if not value:
         return None
-    return datetime.fromisoformat(value)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"invalid datetime: {value!r}") from exc
 
 
 @bp.get("/history/aggregations/counter/<counter_id>")
@@ -77,12 +80,17 @@ def counter_events(counter_id: str):
     offset = max(int(request.args.get("offset", 0)), 0)
     session = get_session()
     try:
+        try:
+            from_ts = _parse_dt(request.args.get("from"))
+            to_ts = _parse_dt(request.args.get("to"))
+        except ValueError as exc:
+            return jsonify({"error": "invalid_datetime", "detail": str(exc)}), 400
         svc = get_query_service(session, current_app.extensions["cache"])
         return jsonify(
             svc.counter_event_history(
                 counter_id,
-                from_ts=_parse_dt(request.args.get("from")),
-                to_ts=_parse_dt(request.args.get("to")),
+                from_ts=from_ts,
+                to_ts=to_ts,
                 meal_type=request.args.get("meal_type"),
                 checkpoint_type=request.args.get("checkpoint_type"),
                 limit=limit,
@@ -99,12 +107,17 @@ def cafe_events(cafe_id: str):
     offset = max(int(request.args.get("offset", 0)), 0)
     session = get_session()
     try:
+        try:
+            from_ts = _parse_dt(request.args.get("from"))
+            to_ts = _parse_dt(request.args.get("to"))
+        except ValueError as exc:
+            return jsonify({"error": "invalid_datetime", "detail": str(exc)}), 400
         svc = get_query_service(session, current_app.extensions["cache"])
         return jsonify(
             svc.cafe_event_history(
                 cafe_id,
-                from_ts=_parse_dt(request.args.get("from")),
-                to_ts=_parse_dt(request.args.get("to")),
+                from_ts=from_ts,
+                to_ts=to_ts,
                 limit=limit,
                 offset=offset,
             )

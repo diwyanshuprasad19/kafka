@@ -8,13 +8,18 @@ from checkpoint_platform.config import get_settings
 
 _settings = get_settings()
 
-engine = create_engine(
-    _settings.database_url,
-    pool_size=_settings.db_pool_size,
-    max_overflow=_settings.db_max_overflow,
-    pool_pre_ping=True,
-    future=True,
-)
+_engine_kwargs: dict = {
+    "pool_size": _settings.db_pool_size,
+    "max_overflow": _settings.db_max_overflow,
+    "pool_pre_ping": True,
+    "pool_timeout": 30,
+    "future": True,
+}
+# Avoid hanging workers/API on unreachable Postgres (sqlite tests skip connect_args).
+if _settings.database_url.startswith("postgresql"):
+    _engine_kwargs["connect_args"] = {"connect_timeout": 5}
+
+engine = create_engine(_settings.database_url, **_engine_kwargs)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 

@@ -1,9 +1,20 @@
 name: pr-review
 on:
   pull_request:
+  # Merges push the workflow file / commit; without a push job GitHub reports
+  # "No jobs were run" (failure). Keep a tiny always-green push job.
+  push:
+    branches: [main, master]
 
 jobs:
+  noop-on-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "pr-review is PR-focused; push is a no-op success"
+
   reviewdog-ruff:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,18 +32,30 @@ jobs:
           ruff check --output-format=pylint . 2>/dev/null | \
             reviewdog -f=pylint -name=ruff -reporter=github-pr-review -level=warning || true
 
-  # PR-Agent (Qodo) — needs OPENAI_API_KEY. Skip when unset to avoid
-  # "Failed to generate code suggestions" emails / red noise.
+  # Always schedule the job on PRs so the workflow is not empty. Skip the
+  # PR-Agent *step* when OPENAI_API_KEY is unset (avoids suggestion-fail emails).
   pr-agent:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
     permissions:
       contents: read
       pull-requests: write
       issues: write
     steps:
       - uses: actions/checkout@v4
+      - name: Detect OpenAI secret
+        id: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY not set — skipping PR-Agent"
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: PR Agent review
+        if: steps.openai.outputs.has_key == 'true'
         uses: qodo-ai/pr-agent@main
         env:
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}

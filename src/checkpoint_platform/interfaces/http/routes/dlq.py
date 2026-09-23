@@ -5,9 +5,22 @@ from checkpoint_platform.config.container import get_query_service, get_session
 bp = Blueprint("dlq", __name__)
 
 
+def _parse_limit(raw: str | None, *, default: int = 50, max_value: int = 200) -> int:
+    try:
+        value = int(default if raw is None else raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"invalid limit: {raw!r}") from exc
+    if value < 1:
+        raise ValueError(f"limit must be >= 1, got {value}")
+    return min(value, max_value)
+
+
 @bp.get("/dlq")
 def list_dlq():
-    limit = min(int(request.args.get("limit", 50)), 200)
+    try:
+        limit = _parse_limit(request.args.get("limit"), default=50, max_value=200)
+    except ValueError as exc:
+        return jsonify({"error": "invalid_limit", "detail": str(exc)}), 400
     status = request.args.get("status")  # pending | reingested | skipped
     session = get_session()
     try:

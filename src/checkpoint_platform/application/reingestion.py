@@ -49,13 +49,15 @@ class ReIngestionService:
         results: list[dict[str, Any]] = []
         for row in rows:
             try:
-                result = self._reingest_one_dlq(
-                    row=row,
-                    new_event_id=req.new_event_id,
-                    force=req.force,
-                    reset_retry_count=req.reset_retry_count,
-                    correlation_id=correlation_id,
-                )
+                # Savepoint so force-delete of processed rows rolls back if publish/mark fails.
+                with self.session.begin_nested():
+                    result = self._reingest_one_dlq(
+                        row=row,
+                        new_event_id=req.new_event_id,
+                        force=req.force,
+                        reset_retry_count=req.reset_retry_count,
+                        correlation_id=correlation_id,
+                    )
                 results.append(result)
                 REINGEST_EVENTS.labels(source="dlq", outcome="success").inc()
             except Exception as exc:
@@ -74,8 +76,14 @@ class ReIngestionService:
                     }
                 )
 
+        # Durable publish before committing DLQ/processed mutations.
+        remaining = self.publisher.flush()
+        if remaining:
+            self.session.rollback()
+            raise RuntimeError(
+                f"reingest_dlq flush incomplete: {remaining} message(s) still buffered"
+            )
         self.session.commit()
-        self.publisher.flush()
 
         logger.info(
             "reingest_dlq_completed",
@@ -124,7 +132,11 @@ class ReIngestionService:
                 REINGEST_FAILURES.inc()
                 results.append({"status": "failed", "error": str(exc)})
 
-        self.publisher.flush()
+        remaining = self.publisher.flush()
+        if remaining:
+            raise RuntimeError(
+                f"reingest_events flush incomplete: {remaining} message(s) still buffered"
+            )
         logger.info(
             "reingest_events_completed",
             count=len(results),

@@ -297,9 +297,10 @@ def test_http_route_error_and_not_found_paths():
 
             assert hist._parse_dt(None) is None
             assert hist._parse_dt("2024-01-01T00:00:00") is not None
-            assert client.get(
-                "/history/aggregations/counter/c1?from_date=not-a-date"
-            ).status_code == 400
+            assert (
+                client.get("/history/aggregations/counter/c1?from_date=not-a-date").status_code
+                == 400
+            )
             assert client.get("/history/events/counter/c1?limit=abc").status_code == 400
             assert client.get("/history/events/counter/c1?limit=-1").status_code == 400
             assert client.get("/dlq?limit=nope").status_code == 400

@@ -164,6 +164,7 @@ def test_reingestion_service_paths():
 
     session = MagicMock()
     publisher = MagicMock()
+    publisher.flush.return_value = 0
     svc = ReIngestionService(session, publisher)
 
     good = MagicMock()
@@ -214,6 +215,14 @@ def test_reingestion_service_paths():
     statuses = [r["status"] for r in out["results"]]
     assert "published" in statuses
     assert "failed" in statuses
+
+    # flush incomplete after successful buffer → rollback, no commit
+    svc.dlq_repo.get_by_ids.return_value = [good2]
+    publisher.flush.return_value = 3
+    with pytest.raises(RuntimeError, match="flush incomplete"):
+        svc.reingest_dlq(ReingestDlqRequest(dlq_ids=[10], new_event_id=True))
+    session.rollback.assert_called()
+    publisher.flush.return_value = 0
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +297,12 @@ def test_http_route_error_and_not_found_paths():
 
             assert hist._parse_dt(None) is None
             assert hist._parse_dt("2024-01-01T00:00:00") is not None
+            assert client.get(
+                "/history/aggregations/counter/c1?from_date=not-a-date"
+            ).status_code == 400
+            assert client.get("/history/events/counter/c1?limit=abc").status_code == 400
+            assert client.get("/history/events/counter/c1?limit=-1").status_code == 400
+            assert client.get("/dlq?limit=nope").status_code == 400
             # success path for state/audit when found
             qsvc.get_checkpoint_state.return_value = {"checkpoint_id": "x"}
             qsvc.processed_event.return_value = {"event_id": "e"}
